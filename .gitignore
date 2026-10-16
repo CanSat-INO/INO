@@ -1,0 +1,22 @@
+# ローカル生成物・依存関係
+**/node_modules/
+**/dist/
+**/build/
+**/install/
+**/log/
+**/logs/
+**/__pycache__/
+*.py[cod]
+*.tsbuildinfo
+
+# 環境設定・エディタ
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Windows download metadata
+*Zone.Identifier
