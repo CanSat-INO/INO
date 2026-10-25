@@ -1,0 +1,35 @@
+{
+  "format": "cansat-module-lab-records",
+  "records": [
+    {
+      "attachments": [
+        {
+          "bytes": 3287,
+          "name": "virtual_sensor_trace.csv",
+          "sha256": "6266166b45c746072ab3c18d1c78166601d955f4d469420d389543646685308b"
+        }
+      ],
+      "code_version": "landing_sim.py 参考モデル v1（Arduino非実行）",
+      "created_at": "2026-10-25T17:34:25+09:00",
+      "expected": "真の接地10.0秒以降、15.0秒までに検知",
+      "id": "522514516aaa456181d7197bdb6df949",
+      "metrics": {
+        "delay_s": 3.0,
+        "detected_time_s": 13.0,
+        "imu_threshold_mps2": 12.5,
+        "pressure_descent_pa": 2.0,
+        "pressure_stable_pa": 0.5,
+        "stable_samples": 3,
+        "true_contact_s": 10.0
+      },
+      "mode": "仮想参考モデル",
+      "module": "着地検知",
+      "notes": "参考シミュレーション。実機試験結果ではありません。",
+      "observed": "検知時刻 13.0 秒",
+      "scenario": "通常着地",
+      "status": "成功",
+      "tester": "SYNC_TEST"
+    }
+  ],
+  "version": 1
+}
