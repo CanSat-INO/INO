@@ -1,4 +1,4 @@
-"""CanSat Module Test Lab v1: standalone, team-shareable test ledger.
+"""CanSat Module Test Lab v2: standalone, GitHub/ZIP-sharable test ledger.
 Run with an existing PySide6 venv; no ROS 2 import or service required.
 """
 from __future__ import annotations
@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QRect, QPointF
+from PySide6.QtCore import Qt, QRect, QPointF, QThread, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QBrush
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QHeaderView
 )
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
+from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
 from records import (
     DATA_DIR, ATTACHMENTS_DIR, load_records, new_record, add_record, store_trace,
     export_bundle, import_bundle, export_csv
@@ -172,6 +173,32 @@ class ManualRecordDialog(QDialog):
                           notes=self.note.toPlainText().strip())
 
 
+class GitHubSyncWorker(QThread):
+    """Network synchronization runs outside the UI thread."""
+    succeeded = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, action: str, ids: list[str] | None = None):
+        super().__init__()
+        self.action = action
+        self.ids = ids or []
+
+    def run(self):
+        try:
+            sync = GitHubSync(REPO_DEFAULT, BRANCH_DEFAULT)
+            if self.action == "check":
+                result = {"connection": sync.check_access()}
+            elif self.action == "upload":
+                result = sync.upload(self.ids)
+            elif self.action == "download":
+                result = sync.download()
+            else:
+                raise ValueError("Unknown synchronization action")
+            self.succeeded.emit(result)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class TestLab(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -187,12 +214,13 @@ class TestLab(QMainWindow):
         """)
         self.trace = None
         self.reference_result = None
+        self._sync_worker = None
         root = QWidget(); self.setCentralWidget(root)
         outer = QVBoxLayout(root)
         h = QLabel("CanSat Module Test Lab")
         h.setStyleSheet("font-size: 22px; font-weight: bold; color: #17365e; margin: 5px 0;")
         outer.addWidget(h)
-        info = QLabel("統合ROS 2シミュレーターとは独立した実験環境  |  結果をZIPで共有 → 1か所に集約")
+        info = QLabel("統合ROS 2シミュレーターとは独立した実験環境  |  結果をZIP / GitHubで共有 → 1か所に集約")
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
         self.tabs = QTabWidget(); outer.addWidget(self.tabs, 1)
@@ -304,6 +332,22 @@ class TestLab(QMainWindow):
         for name, callback in actions:
             b = QPushButton(name); b.clicked.connect(callback); row.addWidget(b)
         lay.addLayout(row)
+        github_row = QHBoxLayout()
+        self.github_location = QLabel(f"GitHub保存先: {REPO_DEFAULT} / {BRANCH_DEFAULT}")
+        self.github_location.setStyleSheet("color: #17365e; font-weight: bold;")
+        github_row.addWidget(self.github_location, 1)
+        self.github_buttons = []
+        for label, action in [("接続確認", "check"),
+                              ("選択結果をGitHubに送信", "upload"),
+                              ("チーム結果をGitHubから取得", "download")]:
+            button = QPushButton(label)
+            button.clicked.connect(lambda checked=False, a=action: self.start_github_sync(a))
+            self.github_buttons.append(button)
+            github_row.addWidget(button)
+        lay.addLayout(github_row)
+        self.github_status = QLabel("GitHub同期は手動実行です。gh auth login済みのアカウントを使用します。")
+        self.github_status.setStyleSheet("color: #566576;")
+        lay.addWidget(self.github_status)
         self.table = QTableWidget()
         cols = ["日時", "モジュール", "実験方法", "担当者", "試験ケース", "コード版", "結果", "観測値", "ID"]
         self.table.setColumnCount(len(cols)); self.table.setHorizontalHeaderLabels(cols)
@@ -315,7 +359,7 @@ class TestLab(QMainWindow):
             self.table.setColumnWidth(i, w)
         self.table.setAlternatingRowColors(True)
         lay.addWidget(self.table, 1)
-        note = QLabel("共有ZIPには実験情報と添付CSV/ログが含まれます。相手のZIPを取り込むとIDで重複排除します。")
+        note = QLabel("共有ZIPとGitHub同期を併用できます。GitHubに送信する前にログ中の秘密情報を確認してください。同一IDは上書きしません。")
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
 
@@ -377,6 +421,66 @@ class TestLab(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "取り込みエラー", str(exc))
 
+    def start_github_sync(self, action):
+        if self._sync_worker is not None:
+            return
+        ids = self.selected_ids() if action == "upload" else []
+        if action == "upload" and not ids:
+            QMessageBox.information(self, "実験を選択", "GitHubに送信する実験結果の行を選択してください。")
+            return
+        if action == "upload":
+            question = (f"{len(ids)}件の実験結果を非公開リポジトリ {REPO_DEFAULT} の "
+                        f"{BRANCH_DEFAULT} ブランチへ直接追加します。\n"
+                        "添付ログも送信されます。個人情報・認証情報を含まないか確認しましたか？\n"
+                        "同じ実験IDの既存記録は上書きしません。")
+            if QMessageBox.question(self, "GitHub送信の確認", question,
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+                return
+        for btn in self.github_buttons:
+            btn.setEnabled(False)
+        self.github_status.setText("GitHubと通信しています。完了するまでアプリを閉じないでください。")
+        worker = GitHubSyncWorker(action, ids)
+        self._sync_worker = worker
+        worker.succeeded.connect(lambda result, a=action: self._on_sync_success(a, result))
+        worker.failed.connect(self._on_sync_failure)
+        worker.finished.connect(self._on_sync_finish)
+        worker.start()
+
+    def _on_sync_success(self, action, result):
+        if action == "check":
+            msg = f"GitHub接続に成功しました。\n{result['connection']}"
+        elif action == "upload":
+            msg = (f"送信した実験: {result['uploaded']}件\n"
+                   f"登録済みで送信不要: {result['skipped']}件\n"
+                   "GitHub上の experiments/records に記録されます。")
+        else:
+            self.refresh_ledger()
+            msg = (f"GitHub上の実験: {result['remote']}件\n"
+                   f"新規取り込み: {result['added']}件\n"
+                   f"同一IDの重複: {result['skipped']}件\n"
+                   f"同一IDで内容が異なる記録（未上書き）: {result['conflicts']}件")
+        self.github_status.setText(msg.replace("\n", "  |  "))
+        QMessageBox.information(self, "GitHub同期結果", msg)
+
+    def _on_sync_failure(self, message):
+        self.github_status.setText("GitHub同期に失敗しました。ローカルの実験台帳は残っています。")
+        QMessageBox.warning(self, "GitHub同期エラー", message)
+
+    def _on_sync_finish(self):
+        for btn in self.github_buttons:
+            btn.setEnabled(True)
+        worker = self._sync_worker
+        self._sync_worker = None
+        if worker is not None:
+            worker.deleteLater()
+
+    def closeEvent(self, event):
+        if self._sync_worker is not None and self._sync_worker.isRunning():
+            event.ignore()
+            QMessageBox.information(self, "GitHub同期中", "通信が完了してからアプリを閉じてください。")
+            return
+        super().closeEvent(event)
+
     def export_table(self):
         path, _ = QFileDialog.getSaveFileName(self, "集計CSVの保存先", str(Path.home()/"cansat-experiment-summary.csv"), "CSV (*.csv)")
         if not path: return
@@ -404,6 +508,18 @@ class TestLab(QMainWindow):
 5. チームに送る結果を選び、共有ZIPを出力します。
 6. 集約担当者は共有ZIPを取り込み、CSVで全結果を出力します。
 
+【GitHub共有（v2）】
+・Ubuntuで gh auth login 済みであることを確認してください。
+・「接続確認」で CanSat-INO/INO の参照権限を確認します。
+・記録行を選んで「選択結果をGitHubに送信」→ 内容確認 → 送信します。
+・他メンバーの実験は「チーム結果をGitHubから取得」で取り込みます。
+・保存先は非公開リポジトリ CanSat-INO/INO の main ブランチです。
+・個々の実験を experiments/records/ID.json に独立して保存します。
+・添付は experiments/attachments/ID/ 配下に保存します（1ファイル900KB以内）。
+・ローカル記録は ~/cansat_module_lab_data に残り、既存IDは上書きしません。
+・GitHub同期は手動実行であり、操作しない限りアップロードしません。
+・ソースコードのGit操作やGitHub Projectsの更新はしません。
+
 【推奨するArduinoログ形式（今後の接続向け）】
 ファイル名例: landing_run_003.csv
 列名: time_ms,imu_z_mps2,pressure_pa,landing_detected
@@ -422,7 +538,7 @@ Arduino側からCSV/シリアル出力を受け取り、実際のC++判定アル
 仮想データの真値と比較する実験アダプターを追加します。
 
 【注意】
-共有ZIPは実験データです。実行形式のコードを自動実行しません。
+共有ZIPおよびGitHubの実験記録は実験データです。実行形式のコードを自動実行しません。
 個人情報・秘密情報が含まれるログは、共有前に内容を確認してください。""")
         layout.addWidget(text)
 
