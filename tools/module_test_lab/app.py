@@ -1,4 +1,4 @@
-"""CanSat Module Test Lab v2: standalone, GitHub/ZIP-sharable test ledger.
+"""CanSat Module Test Lab v3: standalone, GitHub/ZIP-sharable test ledger.
 Run with an existing PySide6 venv; no ROS 2 import or service required.
 """
 from __future__ import annotations
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
+from dashboard import DashboardTab
 from records import (
     DATA_DIR, ATTACHMENTS_DIR, load_records, new_record, add_record, store_trace,
     export_bundle, import_bundle, export_csv
@@ -224,7 +225,7 @@ class TestLab(QMainWindow):
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
         self.tabs = QTabWidget(); outer.addWidget(self.tabs, 1)
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_guide_tab()
         self.refresh_ledger()
 
     def build_sim_tab(self):
@@ -363,6 +364,10 @@ class TestLab(QMainWindow):
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
 
+    def build_dashboard_tab(self):
+        self.dashboard = DashboardTab(on_download=self.start_github_sync)
+        self.tabs.addTab(self.dashboard, "結果ダッシュボード")
+
     def refresh_ledger(self):
         try: self.records = sorted(load_records(), key=lambda x: x.get("created_at", ""), reverse=True)
         except Exception as exc:
@@ -380,6 +385,8 @@ class TestLab(QMainWindow):
         success = sum(r.get("status") == "成功" for r in self.records)
         failed = sum(r.get("status") == "失敗" for r in self.records)
         self.summary.setText(f"保存済み {len(self.records)} 件   |   成功 {success} 件   |   失敗 {failed} 件   |   未判定 {len(self.records)-success-failed} 件   |   データ保存先: {DATA_DIR}")
+        if hasattr(self, "dashboard"):
+            self.dashboard.reload(self.records)
 
     def add_manual(self):
         dialog = ManualRecordDialog(self)
@@ -544,9 +551,26 @@ Arduino側からCSV/シリアル出力を受け取り、実際のC++判定アル
 
 
 def main():
-    app = QApplication(sys.argv)
-    window = TestLab(); window.show()
-    sys.exit(app.exec())
+    import gc
+
+    app = QApplication([])
+    window = TestLab()
+
+    # Qt終了時にウィンドウの削除を予約する
+    app.aboutToQuit.connect(window.deleteLater)
+
+    window.show()
+
+    result = app.exec()
+
+    # Python終了前に参照を整理する
+    del window
+    gc.collect()
+
+    del app
+    gc.collect()
+
+    raise SystemExit(result)
 
 
 if __name__ == "__main__":
