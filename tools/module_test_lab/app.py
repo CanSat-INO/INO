@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QDialog, QDialogButtonBox, QTabWidget, QSplitter,
     QHeaderView
 )
+from module_navigation import ModuleNavigation
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
 from dashboard import DashboardTab
@@ -232,7 +233,7 @@ class TestLab(QMainWindow):
         info = QLabel("統合ROS 2シミュレーターとは独立した実験環境  |  結果をZIP / GitHubで共有 → 1か所に集約")
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
-        self.tabs = QTabWidget(); outer.addWidget(self.tabs, 1)
+        self.navigation = ModuleNavigation(self); outer.addWidget(self.navigation, 1); self.tabs = self.navigation.tabs
         self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_guide_tab()
         self.refresh_ledger()
 
