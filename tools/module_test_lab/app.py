@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
 from dashboard import DashboardTab
+from arduino_csv_tab import ArduinoCsvTab
 from records import (
     DATA_DIR, ATTACHMENTS_DIR, load_records, new_record, add_record, store_trace,
     export_bundle, import_bundle, export_csv
@@ -225,7 +226,7 @@ class TestLab(QMainWindow):
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
         self.tabs = QTabWidget(); outer.addWidget(self.tabs, 1)
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_guide_tab()
         self.refresh_ledger()
 
     def build_sim_tab(self):
@@ -363,6 +364,10 @@ class TestLab(QMainWindow):
         note = QLabel("共有ZIPとGitHub同期を併用できます。GitHubに送信する前にログ中の秘密情報を確認してください。同一IDは上書きしません。")
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
+
+    def build_arduino_csv_tab(self):
+        self.arduino_csv_tab = ArduinoCsvTab(on_saved=self.refresh_ledger)
+        self.tabs.addTab(self.arduino_csv_tab, "Arduino/CSVログ解析")
 
     def build_dashboard_tab(self):
         self.dashboard = DashboardTab(on_download=self.start_github_sync)
@@ -504,7 +509,7 @@ class TestLab(QMainWindow):
         text.setPlainText("""【役割分担】
 ・Arduino IDEの実機プログラムは担当者が開発します。
 ・このアプリは統合ROS 2/RViz2シミュレーターとは別物です。
-・この版では、仮想IMU/BME280データの参考判定と実験記録の集約を提供します。
+・この版では、仮想IMU/BME280の参考判定、CSVログ解析、実験記録の集約を提供します。
 ・.inoをそのまま読み込んで実行する機能は、まだありません。
 
 【試験の流れ】
@@ -527,7 +532,9 @@ class TestLab(QMainWindow):
 ・GitHub同期は手動実行であり、操作しない限りアップロードしません。
 ・ソースコードのGit操作やGitHub Projectsの更新はしません。
 
-【推奨するArduinoログ形式（今後の接続向け）】
+【Arduino/外部CSVログ解析（v4）】
+・対応するCSVを取り込み、着地検知と接地の正解時刻を比較します。
+・解析結果は実験台帳に保存し、従来どおりGitHubへ手動共有できます。
 ファイル名例: landing_run_003.csv
 列名: time_ms,imu_z_mps2,pressure_pa,landing_detected
 単位: ミリ秒, m/s^2, Pa, 0または1
@@ -541,8 +548,8 @@ class TestLab(QMainWindow):
 ~/cansat_module_lab_data/attachments/
 
 【次期拡張】
-Arduino側からCSV/シリアル出力を受け取り、実際のC++判定アルゴリズムの出力を
-仮想データの真値と比較する実験アダプターを追加します。
+実機依存部を分離したArduino C++判定ロジックの仮想実行、
+シリアルログのリアルタイム受信などを追加します。
 
 【注意】
 共有ZIPおよびGitHubの実験記録は実験データです。実行形式のコードを自動実行しません。
