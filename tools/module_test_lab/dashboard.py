@@ -166,7 +166,7 @@ class DashboardTab(QWidget):
                                 ("判定", self.status), ("担当者", self.tester)]:
             filters.addWidget(QLabel(caption)); filters.addWidget(widget, 1)
         reload_btn = QPushButton("一覧を更新")
-        reload_btn.clicked.connect(self.reload)
+        reload_btn.clicked.connect(lambda checked=False: self.reload())
         filters.addWidget(reload_btn)
         if on_download:
             get_btn = QPushButton("GitHubから取得")
