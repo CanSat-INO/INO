@@ -19,6 +19,7 @@ from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
 from dashboard import DashboardTab
 from arduino_csv_tab import ArduinoCsvTab
+from cpp_landing_tab import CppLandingTab
 from records import (
     DATA_DIR, ATTACHMENTS_DIR, load_records, new_record, add_record, store_trace,
     export_bundle, import_bundle, export_csv
@@ -226,7 +227,7 @@ class TestLab(QMainWindow):
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
         self.tabs = QTabWidget(); outer.addWidget(self.tabs, 1)
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_guide_tab()
         self.refresh_ledger()
 
     def build_sim_tab(self):
@@ -364,6 +365,10 @@ class TestLab(QMainWindow):
         note = QLabel("共有ZIPとGitHub同期を併用できます。GitHubに送信する前にログ中の秘密情報を確認してください。同一IDは上書きしません。")
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
+
+    def build_cpp_landing_tab(self):
+        self.cpp_landing_tab = CppLandingTab(on_saved=self.refresh_ledger)
+        self.tabs.addTab(self.cpp_landing_tab, "C++着地判定")
 
     def build_arduino_csv_tab(self):
         self.arduino_csv_tab = ArduinoCsvTab(on_saved=self.refresh_ledger)
@@ -538,6 +543,12 @@ class TestLab(QMainWindow):
 ファイル名例: landing_run_003.csv
 列名: time_ms,imu_z_mps2,pressure_pa,landing_detected
 単位: ミリ秒, m/s^2, Pa, 0または1
+
+【C++着地判定のホストPC試験（v4 第2段階）】
+・Arduinoの判定部分を分離した信頼できるC++ファイル(.cpp)をg++で実行します。
+・CSVのIMU値をC++に入力し、得られた判定を接地時刻と比較します。
+・Arduino/ESP32のハードウェア依存APIや.ino全体の実行には対応しません。
+・コードはPCで実行されるため、信頼できるファイルのみ選択してください。
 
 【記録すること】
 モジュール名、試験ケース、担当者、コード版/Git commit、期待する動作、
