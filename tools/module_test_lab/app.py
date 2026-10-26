@@ -23,6 +23,7 @@ from cpp_landing_tab import CppLandingTab
 from landing_batch_tab import LandingBatchTab
 from landing_compare_tab import LandingCompareTab
 from landing_optimizer_tab import LandingOptimizerTab
+from module_network_tab import ModuleNetworkTab
 from records import (
     DATA_DIR, ATTACHMENTS_DIR, load_records, new_record, add_record, store_trace,
     export_bundle, import_bundle, export_csv
@@ -230,7 +231,7 @@ class TestLab(QMainWindow):
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
         self.tabs = QTabWidget(); outer.addWidget(self.tabs, 1)
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_guide_tab()
         self.refresh_ledger()
 
     def build_sim_tab(self):
@@ -368,6 +369,10 @@ class TestLab(QMainWindow):
         note = QLabel("共有ZIPとGitHub同期を併用できます。GitHubに送信する前にログ中の秘密情報を確認してください。同一IDは上書きしません。")
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
+
+    def build_module_network_tab(self):
+        self.module_network_tab = ModuleNetworkTab()
+        self.tabs.addTab(self.module_network_tab, "3モジュール・仮想CAN")
 
     def build_landing_optimizer_tab(self):
         self.landing_optimizer_tab = LandingOptimizerTab(on_saved=self.refresh_ledger)
