@@ -12,7 +12,7 @@ from PySide6.QtGui import QColor, QPainter, QPen, QBrush, QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QAbstractItemView,
-    QHeaderView, QSplitter, QTabWidget, QTextEdit, QGroupBox,
+    QHeaderView, QSplitter, QTabWidget, QTextEdit, QPlainTextEdit, QGroupBox,
 )
 
 import dashboard_data as data
@@ -236,6 +236,10 @@ class DashboardTab(QWidget):
         cr.addWidget(self.group_table, 1)
         cr.addWidget(_label("※成功率は成功÷(成功＋失敗)。未判定は分母に含めません。", False))
         tabs.addTab(compare_page, "比較・機能別集計")
+        self.report_text = QPlainTextEdit()
+        self.report_text.setReadOnly(True)
+        self.report_text.setPlainText("比較レポートを選択すると表示します。")
+        tabs.addTab(self.report_text, "比較・最適化レポート")
         splitter.addWidget(tabs)
         splitter.setSizes([510, 600])
         lay.addWidget(splitter, 1)
@@ -307,6 +311,7 @@ class DashboardTab(QWidget):
             self.detail.setPlainText("該当する記録がありません。フィルターを変更してください。")
             self.trace_note.setText("—")
             self.plot.set_data(None)
+            self.report_text.setPlainText("該当する記録がありません。")
 
     def select_record(self):
         selected = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []
@@ -332,6 +337,7 @@ class DashboardTab(QWidget):
             blocks.insert(0, "<b style='color:#98571c'>参考モデルの結果です。ESP32-S3実機の試験結果ではありません。</b>")
         self.detail.setHtml("<div style='font-size:12px; line-height:1.55'>" + "<br>".join(blocks) + "</div>")
         packet = data.read_trace(rec)
+        self.report_text.setPlainText(packet.get("report_text") or "選択した記録には比較・最適化レポートがありません。")
         legend = []
         if packet.get("contact_time") is not None: legend.append("赤線＝真の接地")
         if packet.get("detected_time") is not None: legend.append("緑線＝検知")
