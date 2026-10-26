@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 from records import ATTACHMENTS_DIR, MAX_ATTACHMENT_BYTES
+from dashboard_report_v7 import parse_report_csv
 
 _ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
@@ -126,6 +127,9 @@ def read_trace(record: dict, attachment_root: Path | None = None) -> dict:
             from io import StringIO
             reader = csv.DictReader(StringIO(content.decode("utf-8-sig")))
             fields = set(reader.fieldnames or [])
+            structured = parse_report_csv(content, name)
+            if structured is not None:
+                return structured
             if not ({"time_s", "time_ms"} & fields):
                 problems.append(f"{name}: time_s または time_ms 列がありません。"); continue
             if not ({"imu_z_mps2", "pressure_pa"} & fields):
