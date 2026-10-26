@@ -227,7 +227,7 @@ class LandingOptimizerTab(QWidget):
                     code_version=self.version.text().strip() or 'v7_parameter_grid',
                     status='未判定',expected='合成8条件で設定の成功数・早期誤検知・遅延を比較',
                     observed=observed,
-                    notes='仮想条件での探索で実機最適値ではありません。' 
+                    notes='仮想条件での探索で実機最適値ではありません。'
                           f' CPP={Path(result.source).name} SHA256={result.source_sha256}',
                     metrics={'combinations':len(result.candidates),
                              'best_success':best.counts['成功'] if best else None,
