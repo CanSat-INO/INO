@@ -61,11 +61,15 @@ class Result:
         return sum(e.event == 'タイムアウト' for e in self.events)
 
 
-def simulate(key: str) -> Result:
+def simulate(key: str, *, cpp_policy: dict[str, bool] | None = None) -> Result:
     """Run one virtual scenario with deterministic ordering and finite events."""
     if key not in SCENARIO_BY_KEY:
         raise ValueError(f'不明なシナリオ: {key}')
     scenario = SCENARIO_BY_KEY[key]
+    if cpp_policy is not None:
+        required = {'main_landing', 'drive_move', 'cam_capture', 'drive_stop'}
+        if set(cpp_policy) != required or any(type(x) is not bool for x in cpp_policy.values()):
+            raise ValueError('C++判断結果の形式が不正です。')
     state = {'Main': 'WAIT_LANDING', 'CAM': 'IDLE', 'Drive': 'IDLE'}
     diagnostics = []
     events = []
@@ -159,9 +163,18 @@ def simulate(key: str) -> Result:
             return
         if target == 'Drive':
             if command == 'MOVE':
+                if cpp_policy is not None and not cpp_policy['drive_move']:
+                    record('Drive','Main',short,'C++拒否','DriveのC++がMOVEを拒否しました。')
+                    state['Drive'] = 'FAULT'
+                    send('Drive','Main','ACK',require_ack=False,reply_to=message_id,accepted=False)
+                    return
                 state['Drive'] = 'MOVING'
                 send('Drive','Main','ACK',require_ack=False,reply_to=message_id)
             elif command == 'STOP':
+                if cpp_policy is not None and not cpp_policy['drive_stop']:
+                    record('Drive','Main',short,'C++拒否','DriveのC++がSTOPを拒否しました。実機での停止を保証しません。')
+                    send('Drive','Main','ACK',require_ack=False,reply_to=message_id,accepted=False)
+                    return
                 state['Drive'] = 'STOPPED'
                 send('Drive','Main','ACK',require_ack=False,reply_to=message_id)
             else:
@@ -169,7 +182,10 @@ def simulate(key: str) -> Result:
             return
         if target == 'CAM':
             if command == 'CAPTURE':
-                ok = key != 'cam_reject'
+                cpp_ok = cpp_policy is None or cpp_policy['cam_capture']
+                if not cpp_ok:
+                    record('CAM','Main',short,'C++拒否','CAMのC++がCAPTUREを拒否しました。')
+                ok = key != 'cam_reject' and cpp_ok
                 state['CAM'] = 'DONE' if ok else 'FAULT'
                 send('CAM','Main','ACK',require_ack=False,reply_to=message_id,accepted=ok)
             else:
@@ -180,6 +196,12 @@ def simulate(key: str) -> Result:
     record('System', 'ALL', 'INIT', '開始', '仮想モジュールと仮想CANバスを初期化しました。')
     if key != 'no_landing':
         def on_landing():
+            if cpp_policy is not None and not cpp_policy['main_landing']:
+                state['Main'] = 'BLOCKED'
+                record('Main', 'Drive', 'MOVE', 'C++拒否',
+                       'MainのC++判断で着地イベントを受理せず、MOVEを送信しませんでした。')
+                diagnostics.append('MainのC++着地判断が走行開始を拒否しました。ロジックを確認してください。')
+                return
             state['Main'] = 'WAIT_DRIVE'
             record('Sensor', 'Main', 'LANDING', '入力', '仮想着地イベントを受信しました。')
             send('Main', 'Drive', 'MOVE')
