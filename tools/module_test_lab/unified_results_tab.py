@@ -106,6 +106,9 @@ class UnifiedResultsTab(QWidget):
         if kind == 'fault_analysis':
             w = self.host.module_fault_tab
             return kind, w.result, w.cpp_sha or '', w.cpp_source or '', w.analysis
+        if kind == 'cpp_individual':
+            w = self.host.individual_cpp_tab
+            return kind, w.last_result, w.last_sha or '', w.last_source or '', None
         raise ValueError('保存対象が不正です')
 
     def save_current(self, *_):
@@ -121,7 +124,9 @@ class UnifiedResultsTab(QWidget):
         try:
             record = save_result(result, source_kind=kind,
                                  tester=self.tester.text().strip(),
-                                 cpp_sha256=sha, cpp_source=source, analysis=analysis)
+                                 cpp_sha256=sha, cpp_source=source, analysis=analysis,
+                                 notes=(self.host.individual_cpp_tab.last_notes
+                                        if kind == 'cpp_individual' else ''))
         except (ValueError, TypeError, OSError, RuntimeError) as exc:
             QMessageBox.critical(self, '保存失敗', str(exc))
             return
