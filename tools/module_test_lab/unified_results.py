@@ -17,6 +17,7 @@ SOURCES = {
     'virtual_can': ('3モジュール・仮想CAN', '仮想CAN（PC論理モデル）'),
     'cpp_module': ('C++モジュール連携', 'PC用C++判断＋仮想CAN'),
     'fault_analysis': ('異常分析', '仮想CAN・C++イベント分析'),
+    'cpp_individual': ('Main・CAM・Drive C++個別試験', '独立PC C++3ファイル＋仮想CAN'),
 }
 CSV_NAME = 'module_event_timeline.csv'
 
