@@ -19,6 +19,7 @@ from module_navigation import ModuleNavigation
 from unified_results_tab import UnifiedResultsTab
 from module_cpp_individual_tab import IndividualCppTab
 from simulation_common_tab import SimulationCommonTab
+from experiment_management_tab import ExperimentManagementTab
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
 from dashboard import DashboardTab
@@ -237,7 +238,7 @@ class TestLab(QMainWindow):
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
         self.navigation = ModuleNavigation(self); outer.addWidget(self.navigation, 1); self.tabs = self.navigation.tabs
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_simulation_common_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_guide_tab()
         self.refresh_ledger()
 
     def build_sim_tab(self):
@@ -379,6 +380,14 @@ class TestLab(QMainWindow):
     def build_simulation_common_tab(self):
         self.simulation_common_tab = SimulationCommonTab()
         self.tabs.addTab(self.simulation_common_tab, 'シミュレーション共通基盤')
+
+    def build_experiment_management_tab(self):
+        self.experiment_management_tab = ExperimentManagementTab(
+            config_provider=self.simulation_common_tab._read_config,
+            open_config_tab=lambda: self.navigation.open_tab(
+                self.tabs.indexOf(self.simulation_common_tab)),
+        )
+        self.tabs.addTab(self.experiment_management_tab, 'v12 実験管理・一括比較')
 
     def build_individual_cpp_tab(self):
         self.individual_cpp_tab = IndividualCppTab()
