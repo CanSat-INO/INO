@@ -71,6 +71,7 @@ class ExperimentManagementTab(QWidget):
             if title == '詳細JSON出力': self.json_button = button
         root.addLayout(controls)
         self.status = QLabel('v11の設定画面で条件を調整 → この画面で登録してください。')
+        self.status.setObjectName('v13ExperimentStatus')
         self.status.setWordWrap(True)
         root.addWidget(self.status)
 
@@ -212,8 +213,10 @@ class ExperimentManagementTab(QWidget):
             for j, value in enumerate(cells):
                 cell = QTableWidgetItem(value)
                 if outcome and j == 6:
-                    cell.setForeground(QColor('#15803d' if value == '成功' else
-                                               '#b91c1c' if value == '失敗' else '#946200'))
+                    cell.setForeground(QColor('#166534' if value == '成功' else
+                                               '#A61B2B' if value == '失敗' else '#805000'))
+                    cell.setBackground(QColor('#E7F6ED' if value == '成功' else
+                                               '#FFF0F0' if value == '失敗' else '#FFF3DB'))
                 self.table.setItem(i, j, cell)
         self.table.clearSelection()
         self.table.blockSignals(False)
