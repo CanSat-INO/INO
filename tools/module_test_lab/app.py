@@ -4,6 +4,7 @@ Run with an existing PySide6 venv; no ROS 2 import or service required.
 from __future__ import annotations
 import sys
 from pathlib import Path
+import zipfile
 from datetime import datetime
 
 from PySide6.QtCore import Qt, QRect, QPointF, QThread, Signal
@@ -15,13 +16,24 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QDialog, QDialogButtonBox, QTabWidget, QSplitter,
     QHeaderView
 )
+from gui_theme_v13 import MAIN_STYLESHEET, style_action_buttons
 from module_navigation import ModuleNavigation
 from unified_results_tab import UnifiedResultsTab
 from module_cpp_individual_tab import IndividualCppTab
+from v14_host_tab import HostCppV14Tab
+from v14_1_logic_tab import PortableModulesTab
+from v15_sensor_tab import SensorCsvV15Tab
+from v16_experiment_tab import ExperimentJournalV16Tab
+from v17_phase_tab import PhaseSimulationV17Tab
+from v18_bus_tab import VirtualBusV18Tab
+from v19_compare_tab import ExperimentCompareV19Tab
+from v20_workflow_tab import WorkflowV20Tab
+from v21_quality_tab import QualityV21Tab
 from simulation_common_tab import SimulationCommonTab
 from experiment_management_tab import ExperimentManagementTab
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
+from record_trash import delete_selected, restore_archive, TrashError
 from dashboard import DashboardTab
 from arduino_csv_tab import ArduinoCsvTab
 from cpp_landing_tab import CppLandingTab
@@ -218,28 +230,22 @@ class TestLab(QMainWindow):
         super().__init__()
         self.setWindowTitle("CanSat Module Test Lab  |  個別実験と結果集約")
         self.resize(1120, 770)
-        self.setStyleSheet("""
-            QMainWindow { background: #f6f8fc; }
-            QGroupBox { font-weight: bold; border: 1px solid #d5dce6;
-                        border-radius: 7px; margin-top: 13px; padding: 12px; background: white; }
-            QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 3px; }
-            QPushButton { padding: 7px 11px; }
-            QTableWidget { background: white; gridline-color: #e6e9ef; }
-        """)
+        self.setStyleSheet(MAIN_STYLESHEET)
         self.trace = None
         self.reference_result = None
         self._sync_worker = None
         root = QWidget(); self.setCentralWidget(root)
         outer = QVBoxLayout(root)
         h = QLabel("CanSat Module Test Lab")
-        h.setStyleSheet("font-size: 22px; font-weight: bold; color: #17365e; margin: 5px 0;")
+        h.setObjectName("moduleLabTitle")
         outer.addWidget(h)
         info = QLabel("統合ROS 2シミュレーターとは独立した実験環境  |  結果をZIP / GitHubで共有 → 1か所に集約")
-        info.setStyleSheet("color: #526274; margin-bottom: 8px;")
+        info.setObjectName("moduleLabSubtitle")
         outer.addWidget(info)
         self.navigation = ModuleNavigation(self); outer.addWidget(self.navigation, 1); self.tabs = self.navigation.tabs
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_v14_host_tab(); self.build_v14_1_modules_tab(); self.build_v15_sensor_tab(); self.build_v16_journal_tab(); self.build_v17_phase_tab(); self.build_v18_bus_tab(); self.build_v19_compare_tab(); self.build_v20_workflow_tab(); self.build_v21_quality_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_guide_tab()
         self.refresh_ledger()
+        style_action_buttons(self)
 
     def build_sim_tab(self):
         tab = QWidget(); self.tabs.addTab(tab, "着地検知シミュレーション")
@@ -362,6 +368,18 @@ class TestLab(QMainWindow):
         self.github_status = QLabel("GitHub同期は手動実行です。gh auth login済みのアカウントを使用します。")
         self.github_status.setStyleSheet("color: #566576;")
         lay.addWidget(self.github_status)
+        # Keep data-management actions visible even when the ledger table is tall.
+        cleanup_row = QHBoxLayout()
+        cleanup_info = QLabel('選択した記録はローカルからのみ削除。復元用ZIPを必ず残します。GitHub上は変更しません。')
+        cleanup_info.setWordWrap(True)
+        cleanup_row.addWidget(cleanup_info, 1)
+        self.delete_local_button = QPushButton('選択記録を削除（退避）')
+        self.delete_local_button.clicked.connect(lambda checked=False: self.delete_local_selected())
+        cleanup_row.addWidget(self.delete_local_button)
+        restore_button = QPushButton('退避ZIPから復元')
+        restore_button.clicked.connect(self.restore_local_archive)
+        cleanup_row.addWidget(restore_button)
+        lay.addLayout(cleanup_row)
         self.table = QTableWidget()
         cols = ["日時", "モジュール", "実験方法", "担当者", "試験ケース", "コード版", "結果", "観測値", "ID"]
         self.table.setColumnCount(len(cols)); self.table.setHorizontalHeaderLabels(cols)
@@ -377,6 +395,38 @@ class TestLab(QMainWindow):
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
 
+    def build_v14_1_modules_tab(self):
+        self.v14_1_modules_tab = PortableModulesTab()
+        self.tabs.addTab(self.v14_1_modules_tab, '着地・Drive・CAM・Main ロジック検証')
+
+    def build_v15_sensor_tab(self):
+        self.v15_sensor_tab = SensorCsvV15Tab()
+        self.tabs.addTab(self.v15_sensor_tab, 'センサー実験・ログ解析')
+
+    def build_v17_phase_tab(self):
+        self.v17_phase_tab = PhaseSimulationV17Tab()
+        self.tabs.addTab(self.v17_phase_tab, 'フェーズ別ミッション・仮想試験')
+
+    def build_v18_bus_tab(self):
+        self.v18_bus_tab = VirtualBusV18Tab()
+        self.tabs.addTab(self.v18_bus_tab, 'Main・CAM・Drive 仮想通信検証（v18）')
+
+    def build_v19_compare_tab(self):
+        self.v19_compare_tab = ExperimentCompareV19Tab()
+        self.tabs.addTab(self.v19_compare_tab, '実験管理・仮想ログ比較（v19）')
+
+    def build_v21_quality_tab(self):
+        self.v21_quality_tab = QualityV21Tab()
+        self.tabs.addTab(self.v21_quality_tab, '共通基盤・全体品質チェック（v21）')
+
+    def build_v20_workflow_tab(self):
+        self.v20_workflow_tab = WorkflowV20Tab(host=self)
+        self.tabs.addTab(self.v20_workflow_tab, '共通基盤・実験ワークフロー（v20）')
+
+    def build_v16_journal_tab(self):
+        self.v16_journal_tab = ExperimentJournalV16Tab(host=self)
+        self.tabs.addTab(self.v16_journal_tab, "実験記録・コード版管理（v16）")
+
     def build_simulation_common_tab(self):
         self.simulation_common_tab = SimulationCommonTab()
         self.tabs.addTab(self.simulation_common_tab, 'シミュレーション共通基盤')
@@ -388,6 +438,10 @@ class TestLab(QMainWindow):
                 self.tabs.indexOf(self.simulation_common_tab)),
         )
         self.tabs.addTab(self.experiment_management_tab, 'v12 実験管理・一括比較')
+
+    def build_v14_host_tab(self):
+        self.v14_host_tab = HostCppV14Tab()
+        self.tabs.addTab(self.v14_host_tab, 'Main・CAM・Drive C++実コード検証')
 
     def build_individual_cpp_tab(self):
         self.individual_cpp_tab = IndividualCppTab()
@@ -468,6 +522,64 @@ class TestLab(QMainWindow):
         rows = sorted({index.row() for index in self.table.selectedIndexes()})
         return [self.records[i]["id"] for i in rows]
 
+    def delete_local_selected(self, record_ids=None):
+        """Always back up selected experiments before local-only deletion."""
+        # QPushButton.clicked may supply a checked bool: never treat it as record IDs.
+        if isinstance(record_ids, bool):
+            record_ids = None
+        if self._sync_worker is not None:
+            QMessageBox.warning(self, '同期中', 'GitHub同期が終わってから削除してください。')
+            return
+        ids = list(dict.fromkeys(record_ids if record_ids is not None else self.selected_ids()))
+        if not ids:
+            QMessageBox.information(self, '記録未選択', '削除する実験の行を選択してください。複数選択できます。')
+            return
+        if QMessageBox.question(self, 'ローカル削除の確認',
+                f'選択した {len(ids)} 件の実験記録と添付を、このPCの一覧から削除します。\n'
+                '削除前に復元用ZIPを作ります。GitHub上のデータは削除しません。\n'
+                '他のPCの記録にも影響しません。実行しますか？',
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        try:
+            result = delete_selected(ids)
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            self.refresh_ledger()
+            if hasattr(self, 'v16_journal_tab'):
+                self.v16_journal_tab.reload()
+            QMessageBox.warning(self, '削除の安全確認', f'{exc}\n削除前の台帳と退避ZIPを確認してください。')
+            return
+        self.refresh_ledger()
+        if hasattr(self, 'v16_journal_tab'):
+            self.v16_journal_tab.reload()
+        QMessageBox.information(self, 'ローカル削除完了',
+            f"{result['deleted']}件を一覧から削除しました。\n"
+            f"復元用ZIP: {result['archive']}\n"
+            'GitHub上のデータは変更していません。\n'
+            '退避ZIPは容量を使うため、保管状況も確認してください。')
+
+    def restore_local_archive(self):
+        if self._sync_worker is not None:
+            QMessageBox.warning(self, '同期中', 'GitHub同期の完了後に復元してください。')
+            return
+        folder = str(Path.home() / 'cansat_module_lab_trash')
+        path, _ = QFileDialog.getOpenFileName(self, '退避ZIPを選んで復元', folder, 'ZIP (*.zip)')
+        if not path:
+            return
+        if QMessageBox.question(self, '復元の確認',
+                '選んだZIPの記録と添付をローカル台帳に戻します。既存データは上書きしません。\n復元しますか？',
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        try:
+            result = restore_archive(Path(path))
+        except (ValueError, OSError, KeyError, TypeError, zipfile.BadZipFile) as exc:
+            self.refresh_ledger()
+            QMessageBox.warning(self, '復元を中止', str(exc))
+            return
+        self.refresh_ledger()
+        if hasattr(self, 'v16_journal_tab'):
+            self.v16_journal_tab.reload()
+        QMessageBox.information(self, '復元完了', f"{result['restored']}件を復元しました。\n退避ZIPはそのまま残します。")
+
     def share_selected(self):
         ids = self.selected_ids()
         if not ids:
@@ -493,23 +605,44 @@ class TestLab(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "取り込みエラー", str(exc))
 
-    def start_github_sync(self, action):
+    def start_github_sync(self, action, record_ids=None):
         if self._sync_worker is not None:
+            QMessageBox.information(self, "GitHub同期中", "前の通信が終わるまでお待ちください。")
             return
-        ids = self.selected_ids() if action == "upload" else []
+        ids = list(dict.fromkeys(record_ids if record_ids is not None else
+                                 (self.selected_ids() if action == "upload" else [])))
         if action == "upload" and not ids:
             QMessageBox.information(self, "実験を選択", "GitHubに送信する実験結果の行を選択してください。")
             return
         if action == "upload":
-            question = (f"{len(ids)}件の実験結果を非公開リポジトリ {REPO_DEFAULT} の "
-                        f"{BRANCH_DEFAULT} ブランチへ直接追加します。\n"
-                        "添付ログも送信されます。個人情報・認証情報を含まないか確認しましたか？\n"
-                        "同じ実験IDの既存記録は上書きしません。")
-            if QMessageBox.question(self, "GitHub送信の確認", question,
+            try:
+                local = {r['id']: r for r in load_records()}
+            except (ValueError, OSError, KeyError, TypeError) as exc:
+                QMessageBox.warning(self, "台帳の読み込みエラー", str(exc))
+                return
+            selected = [local[rid] for rid in ids if rid in local]
+            if len(selected) != len(ids):
+                QMessageBox.warning(self, "共有できません", "選択した実験がローカル台帳にありません。")
+                return
+            summary = []
+            for rec in selected[:8]:
+                names = ', '.join(a.get('name', '') for a in rec.get('attachments', [])) or 'なし'
+                summary.append(f"・{rec.get('scenario', '名称なし')[:50]}  [添付: {names[:110]}]")
+            if len(selected) > 8:
+                summary.append(f"…ほか {len(selected) - 8} 件")
+            question = (f"{len(ids)}件の実験記録を {REPO_DEFAULT} / {BRANCH_DEFAULT} へ直接送信します。\n"
+                        "\n".join(summary) + "\n\n"
+                        "添付したCSV・ソースコードも送信対象です。\n"
+                        "個人情報・パスワード・トークンなどを含まないか確認しましたか？\n"
+                        "公開リポジトリへの送信は禁止します。同じIDは上書きしません。")
+            if QMessageBox.question(self, "GitHub送信の最終確認", question,
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 return
         for btn in self.github_buttons:
             btn.setEnabled(False)
+        if hasattr(self, 'v16_journal_tab'):
+            self.v16_journal_tab.set_sync_busy(True)
+            self.v16_journal_tab.set_sync_status("GitHubと通信中です。完了までアプリを閉じないでください。")
         self.github_status.setText("GitHubと通信しています。完了するまでアプリを閉じないでください。")
         worker = GitHubSyncWorker(action, ids)
         self._sync_worker = worker
@@ -527,20 +660,35 @@ class TestLab(QMainWindow):
                    "GitHub上の experiments/records に記録されます。")
         else:
             self.refresh_ledger()
+            if hasattr(self, 'v16_journal_tab'):
+                self.v16_journal_tab.reload()
             msg = (f"GitHub上の実験: {result['remote']}件\n"
                    f"新規取り込み: {result['added']}件\n"
                    f"同一IDの重複: {result['skipped']}件\n"
-                   f"同一IDで内容が異なる記録（未上書き）: {result['conflicts']}件")
+                   f"同一IDで内容が異なる記録（未上書き）: {result['conflicts']}件\n"
+                   f"このPCで削除済みのため取得しない記録: {result.get('skipped_deleted', 0)}件")
+            if result.get('backup'):
+                msg += f"\n取得前のバックアップ: {result['backup']}"
+        if hasattr(self, 'v16_journal_tab'):
+            self.v16_journal_tab.set_sync_status(msg)
         self.github_status.setText(msg.replace("\n", "  |  "))
         QMessageBox.information(self, "GitHub同期結果", msg)
 
     def _on_sync_failure(self, message):
-        self.github_status.setText("GitHub同期に失敗しました。ローカルの実験台帳は残っています。")
+        # A network error after one successful import can leave newly added
+        # records in the local ledger; refresh both views to show the truth.
+        self.refresh_ledger()
+        self.github_status.setText("GitHub同期に失敗しました。既存の実験台帳は削除していません。")
+        if hasattr(self, 'v16_journal_tab'):
+            self.v16_journal_tab.reload()
+            self.v16_journal_tab.set_sync_status("GitHub同期エラー：" + message)
         QMessageBox.warning(self, "GitHub同期エラー", message)
 
     def _on_sync_finish(self):
         for btn in self.github_buttons:
             btn.setEnabled(True)
+        if hasattr(self, 'v16_journal_tab'):
+            self.v16_journal_tab.set_sync_busy(False)
         worker = self._sync_worker
         self._sync_worker = None
         if worker is not None:
