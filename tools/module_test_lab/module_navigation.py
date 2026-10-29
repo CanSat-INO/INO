@@ -340,6 +340,7 @@ class ModuleNavigation(QWidget):
     @staticmethod
     def _display_title(title):
         # Presentation only: original tab names remain untouched for navigation.
+        title = re.sub(r"^\s*v12\s+", "", title, flags=re.I)
         return re.sub(r"[（(]\s*v(?:1[0-9]|2[0-9])(?:\.[0-9]+)?\s*[）)]", "", title, flags=re.I).strip()
 
     def _make_tile(self, tab_index, title):
