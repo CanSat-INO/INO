@@ -246,6 +246,7 @@ class TestLab(QMainWindow):
         self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_v14_host_tab(); self.build_v14_1_modules_tab(); self.build_v15_sensor_tab(); self.build_v16_journal_tab(); self.build_v17_phase_tab(); self.build_v18_bus_tab(); self.build_v19_compare_tab(); self.build_v20_workflow_tab(); self.build_v21_quality_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_guide_tab()
         self.refresh_ledger()
         style_action_buttons(self)
+        self.statusBar().showMessage(f"実験記録の保存先: {DATA_DIR} | GitHub同期は手動です")
 
     def build_sim_tab(self):
         tab = QWidget(); self.tabs.addTab(tab, "着地検知シミュレーション")
@@ -343,6 +344,17 @@ class TestLab(QMainWindow):
         self.summary = QLabel("")
         self.summary.setStyleSheet("font-weight: bold; color: #17365e; padding: 9px;")
         lay.addWidget(self.summary)
+        storage_row = QHBoxLayout()
+        self.storage_path_label = QLabel(f"ローカル実験記録: {DATA_DIR}")
+        self.storage_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        storage_row.addWidget(self.storage_path_label, 1)
+        copy_path_button = QPushButton("保存先をコピー")
+        copy_path_button.clicked.connect(lambda: QApplication.clipboard().setText(str(DATA_DIR)))
+        storage_row.addWidget(copy_path_button)
+        backup_button = QPushButton("バックアップZIPを作成")
+        backup_button.clicked.connect(self.backup_local_experiments)
+        storage_row.addWidget(backup_button)
+        lay.addLayout(storage_row)
         row = QHBoxLayout()
         actions = [("＋ 実機・外部試験を登録", self.add_manual),
                    ("選択結果を共有ZIPに出力", self.share_selected),
@@ -694,10 +706,55 @@ class TestLab(QMainWindow):
         if worker is not None:
             worker.deleteLater()
 
+    # INO_EXIT_SAFETY_V1
+    def backup_local_experiments(self):
+        """Make a non-destructive ZIP snapshot of saved records and attachments."""
+        import os
+        import zipfile
+        temp_path = None
+        try:
+            load_records()  # Confirm the current record file is readable.
+            backup_dir = Path.home() / "cansat_module_lab_backups"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            target = backup_dir / f"ino_experiments_{stamp}.zip"
+            temp_path = backup_dir / f".ino_experiments_{stamp}.partial"
+            with temp_path.open("xb") as output:
+                os.fchmod(output.fileno(), 0o600)
+                with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as z:
+                    z.write(DATA_DIR / "records.json", "records.json")
+                    for source in sorted(ATTACHMENTS_DIR.rglob("*")):
+                        if source.is_file() and not source.is_symlink():
+                            arcname = Path("attachments") / source.relative_to(ATTACHMENTS_DIR)
+                            z.write(source, str(arcname))
+            with zipfile.ZipFile(temp_path, "r") as z:
+                corrupted = z.testzip()
+                if corrupted is not None:
+                    raise ValueError(f"バックアップの検証に失敗: {corrupted}")
+            os.replace(temp_path, target)
+            QMessageBox.information(self, "バックアップ完了",
+                                    f"保存済みの実験記録と添付ファイルをバックアップしました。\n{target}")
+        except Exception as exc:
+            QMessageBox.warning(self, "バックアップ失敗",
+                                f"バックアップを作成できませんでした。元データは変更していません。\n{exc}")
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+
     def closeEvent(self, event):
         if self._sync_worker is not None and self._sync_worker.isRunning():
             event.ignore()
             QMessageBox.information(self, "GitHub同期中", "通信が完了してからアプリを閉じてください。")
+            return
+        choice = QMessageBox.question(
+            self, "Test Labを終了",
+            "Test Labを終了しますか？\n\n"
+            "画面上の未保存の入力内容は保存されません。\n"
+            "保存済みの実験記録はローカルに残ります。",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if choice != QMessageBox.Yes:
+            event.ignore()
             return
         super().closeEvent(event)
 
