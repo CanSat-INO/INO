@@ -14,7 +14,7 @@ if ($root -match '^\\(?:wsl\.localhost|wsl\$)\\([^\\]+)(\\.*)$') {
 }
 $package = "$linuxRoot/ros2_ws/src/ino_camera_sim"
 switch ($Action) {
-    'lab' { & wsl.exe -d $Distribution -- "$linuxRoot/.venv/bin/python" "$linuxRoot/tools/module_test_lab/app.py" }
+    'lab' { & wsl.exe -d $Distribution -- bash "$linuxRoot/tools/module_test_lab/launch_ino.sh" }
     'settings' { & wsl.exe -d $Distribution -- bash "$package/scripts/settings.sh" }
     'start' { & wsl.exe -d $Distribution -- bash "$package/scripts/start.sh" 'capture_mode:=continuous' }
     'stop-capture' { & wsl.exe -d $Distribution -- bash "$package/scripts/start.sh" 'capture_mode:=stop' }

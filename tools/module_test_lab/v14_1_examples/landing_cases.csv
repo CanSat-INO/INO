@@ -1,0 +1,9 @@
+case_id,accel_mps2,gyro_dps,stable_ms,expected
+landing_ok,16,2,800,1
+low_impact,12,2,800,0
+high_gyro,18,10,800,0
+not_stable,18,2,200,0
+accel_boundary,15,5,600,1
+stable_boundary,16,1,599,0
+below_gyro_boundary,15,5.1,600,0
+stationary_gravity,9.81,0.2,5000,0
