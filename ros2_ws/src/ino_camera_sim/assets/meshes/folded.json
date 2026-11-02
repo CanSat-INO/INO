@@ -1,0 +1,59 @@
+{
+  "source": "folded.step",
+  "source_sha256": "3c6543aa03bc123bde0bfb85b774696328234681551448369df64f89aa10324f",
+  "source_units": "STEP reader default mm; dimensions checked against drawing",
+  "source_bounds_mm": [
+    [
+      -62.40782838096774,
+      -5.0,
+      -28.00000000000003
+    ],
+    [
+      62.49999999999992,
+      264.25,
+      85.17315967100467
+    ]
+  ],
+  "cad_to_sim_rotation": [
+    [
+      1.0,
+      -0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "centering_offset_m": [
+    4.608580951609084e-05,
+    0.129625,
+    -0.02800000000000003
+  ],
+  "bounds_m": [
+    [
+      -0.062453914190483836,
+      -0.134625,
+      0.0
+    ],
+    [
+      0.062453914190483836,
+      0.134625,
+      0.11317315967100469
+    ]
+  ],
+  "size_m": [
+    0.12490782838096767,
+    0.26925,
+    0.11317315967100469
+  ],
+  "triangles": 396784,
+  "palette_size": 1,
+  "orientation_status": "Z-up; +X is the two-hole front face, checked against supplied drawing and rendered CAD on 2026-10-14"
+}

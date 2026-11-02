@@ -20,3 +20,5 @@ Thumbs.db
 
 # Windows download metadata
 *Zone.Identifier
+
+.venv/

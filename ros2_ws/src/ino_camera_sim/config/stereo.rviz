@@ -1,0 +1,107 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Background Color: 35; 35; 40
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Plane Cell Count: 20
+      Cell Size: 0.5
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+    - Class: rviz_default_plugins/Marker
+      Name: CanSat CAD model
+      Enabled: true
+      Topic:
+        Value: /robot/cad_marker
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        Depth: 1
+    - Class: rviz_default_plugins/Pose
+      Name: Last estimated robot pose
+      Enabled: true
+      Topic:
+        Value: /slam/robot_pose
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        Depth: 1
+      Shape: Axes
+      Axes Length: 0.15
+      Axes Radius: 0.01
+    - Class: rviz_default_plugins/Image
+      Name: Left camera
+      Enabled: true
+      Topic:
+        Value: /stereo/left/image
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+    - Class: rviz_default_plugins/PointCloud2
+      Name: SLAM Map cloud
+      Enabled: true
+      Topic:
+        Value: /cloud_map
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 10
+      Color Transformer: RGB8
+      Style: Points
+      Size (Pixels): 4
+      Alpha: 1
+    - Class: rviz_default_plugins/Path
+      Name: SLAM Path (optimized)
+      Enabled: true
+      Topic:
+        Value: /slam/path
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 1
+      Color: 255; 210; 30
+      Line Style: Lines
+      Line Width: 0.02
+      Pose Style: Axes
+      Pose Axis Length: 0.08
+      Pose Axis Radius: 0.005
+      Buffer Length: 1
+    - Class: rviz_default_plugins/Path
+      Name: Odometry Path
+      Enabled: true
+      Topic:
+        Value: /odom/path
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Depth: 1
+      Color: 40; 210; 255
+      Line Style: Lines
+      Line Width: 0.01
+      Pose Style: None
+      Buffer Length: 1
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 4
+      Pitch: 0.65
+      Yaw: 0.8
+      Focal Point:
+        X: 1
+        Y: 0
+        Z: 0.2
+Window Geometry:
+  Width: 1200
+  Height: 800

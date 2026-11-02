@@ -19,6 +19,7 @@ from module_navigation import ModuleNavigation
 from unified_results_tab import UnifiedResultsTab
 from module_cpp_individual_tab import IndividualCppTab
 from simulation_common_tab import SimulationCommonTab
+from camera_sim_tab import CameraSimTab
 from experiment_management_tab import ExperimentManagementTab
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
@@ -234,11 +235,11 @@ class TestLab(QMainWindow):
         h = QLabel("CanSat Module Test Lab")
         h.setStyleSheet("font-size: 22px; font-weight: bold; color: #17365e; margin: 5px 0;")
         outer.addWidget(h)
-        info = QLabel("統合ROS 2シミュレーターとは独立した実験環境  |  結果をZIP / GitHubで共有 → 1か所に集約")
+        info = QLabel("個別ロジック試験・Gazeboカメラ試験  |  実験台帳をZIP / GitHubで共有")
         info.setStyleSheet("color: #526274; margin-bottom: 8px;")
         outer.addWidget(info)
         self.navigation = ModuleNavigation(self); outer.addWidget(self.navigation, 1); self.tabs = self.navigation.tabs
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_camera_sim_tab(); self.build_guide_tab()
         self.refresh_ledger()
 
     def build_sim_tab(self):
@@ -376,6 +377,10 @@ class TestLab(QMainWindow):
         note = QLabel("共有ZIPとGitHub同期を併用できます。GitHubに送信する前にログ中の秘密情報を確認してください。同一IDは上書きしません。")
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
+
+    def build_camera_sim_tab(self):
+        self.camera_sim_tab = CameraSimTab()
+        self.tabs.addTab(self.camera_sim_tab, "Gazebo カメラ試験")
 
     def build_simulation_common_tab(self):
         self.simulation_common_tab = SimulationCommonTab()
@@ -550,6 +555,12 @@ class TestLab(QMainWindow):
         if self._sync_worker is not None and self._sync_worker.isRunning():
             event.ignore()
             QMessageBox.information(self, "GitHub同期中", "通信が完了してからアプリを閉じてください。")
+            return
+        if self.camera_sim_tab.active():
+            event.ignore()
+            self.camera_sim_tab.stop()
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(500, self.close)
             return
         super().closeEvent(event)
 

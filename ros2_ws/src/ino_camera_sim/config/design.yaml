@@ -1,0 +1,66 @@
+camera:
+  baseline_m: 0.08
+  height_m: 0.12
+  forward_m: 0.08
+  hfov_deg: 90.0
+  width: 640
+  height: 480
+  fps: 10.0
+  pitch_down_deg: 15.0
+  yaw_deg: 0.0
+  roll_deg: 0.0
+  toe_in_deg: 0.0
+  left_pitch_delta_deg: 0.0
+  right_pitch_delta_deg: 0.0
+  right_height_delta_m: 0.0
+  right_forward_delta_m: 0.0
+capture:
+  mode: sequential
+  settle_s: 0.5
+  period_s: 1.0
+  skew_s: 0.1
+  acquisition_s: 0.0
+  transmission_s: 0.0
+  jpeg_quality: 95
+  drop_probability: 0.0
+  seed: 27
+world:
+  surface: grass_green
+  seed: 27
+  size_m: 12.0
+  texture_span_m: 6.0
+  grass_height_m: 0.025
+  grass_density: 12000
+  cones:
+  - - 2.0
+    - 0.8
+  - - 0.3
+    - -0.8
+  cone_height_m: 0.7
+  cone_base_m: 0.4
+  boxes:
+  - - 2.8
+    - 1.6
+    - 0.4
+    - 0.4
+    - 0.3
+  mat_enabled: true
+  mat_center:
+  - 1.5
+  - -0.7
+  mat_size:
+  - 0.6
+  - 0.4
+  mat_bump_height_m: 0.015
+  mat_bump_spacing_m: 0.05
+robot:
+  shape: deployed
+  mass_kg: 1.037
+test:
+  speed_mps: 0.04
+  step_m: 0.24
+  turn_deg: 14.0
+  turn_rate_degps: 3.5
+  stop_s: 4.0
+  repeats: 2
+  route: zigzag
