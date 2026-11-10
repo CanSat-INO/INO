@@ -162,6 +162,7 @@ class ProjectGuiTests(unittest.TestCase):
             self.assertTrue(hub.empty_state.isVisible())
             self.assertFalse(hub.projects.isVisible())
             self.assertFalse(hub.open_button.isEnabled())
+            self.assertFalse(hub.share_button.isEnabled())
             self.assertLessEqual(hub.findChild(OrbitArtwork).height(),96)
             image=hub.grab().toImage()
             color=image.pixelColor(5,5)
@@ -178,6 +179,79 @@ class ProjectGuiTests(unittest.TestCase):
                 self.assertEqual(hub.centralWidget().horizontalScrollBar().maximum(),0)
             if output:
                 self.assertTrue(hub.grab().save(str(out/'project-hub-projects.png')))
+        finally:
+            hub.hide();hub.deleteLater();self.app.processEvents()
+
+    def test_project_share_dashboard_export_and_second_pc_hub_import(self):
+        from project_hub import ProjectHub
+        import project_share, project_share_dialogs
+        output=self.home/'team-project.cansat-project.json'
+        with patch.object(QFileDialog,'getSaveFileName',return_value=(str(output),'')), patch.object(project_share_dialogs,'message',return_value=QMessageBox.Ok):
+            self.window.navigation.show_home()
+            self.click('projectShareCurrent')
+        document=project_share.read_share(output)
+        self.assertEqual(document['project']['id'],self.project.id)
+        member_root=self.home/'second-pc'/'cansat_module_lab_data'
+        with patch.object(self.store,'base_dir',return_value=member_root):
+            hub=ProjectHub(Path(__file__).resolve().parents[1]/'app.py')
+            try:
+                hub.show();self.app.processEvents()
+                self.assertFalse(hub.share_button.isEnabled())
+                with patch.object(QFileDialog,'getOpenFileName',return_value=(str(output),'')),patch.object(project_share_dialogs,'message',return_value=QMessageBox.Yes),patch.object(hub,'launch') as launch:
+                    QTest.mouseClick(hub.import_button,Qt.LeftButton)
+                    self.app.processEvents()
+                    launch.assert_not_called()
+                self.assertEqual(hub.projects.count(),1)
+                self.assertEqual(hub.projects.currentItem().data(Qt.UserRole),self.project.id)
+                self.assertTrue(hub.share_button.isEnabled())
+                self.assertTrue(hub.open_button.isEnabled())
+                # Re-import selects the existing project and keeps the ledger.
+                ledger=self.store.read_project(self.project.id).directory/'records.json'
+                before=ledger.read_bytes()
+                with patch.object(QFileDialog,'getOpenFileName',return_value=(str(output),'')),patch.object(project_share_dialogs,'message',return_value=QMessageBox.Yes):
+                    QTest.mouseClick(hub.import_button,Qt.LeftButton)
+                self.assertEqual(hub.projects.count(),1)
+                self.assertEqual(ledger.read_bytes(),before)
+                destination=os.environ.get('CANSAT_GUI_OUTPUT_DIR')
+                if destination:
+                    self.assertTrue(hub.grab().save(str(Path(destination)/'project-sharing-hub.png')))
+            finally:
+                hub.hide();hub.deleteLater();self.app.processEvents()
+
+    def test_project_share_import_cancel_preserves_draft_and_storage(self):
+        from project_hub import ProjectHub
+        import project_share,project_share_dialogs
+        output=self.home/'cancel-project.cansat-project.json'
+        project_share.export_share(self.project.id,output)
+        member_root=self.home/'cancelled-second-pc'/'cansat_module_lab_data'
+        with patch.object(self.store,'base_dir',return_value=member_root):
+            hub=ProjectHub(Path(__file__).resolve().parents[1]/'app.py')
+            try:
+                hub.show();hub.name.setText('入力中のプロジェクト');self.app.processEvents()
+                with patch.object(QFileDialog,'getOpenFileName',return_value=(str(output),'')),patch.object(project_share_dialogs,'message',return_value=QMessageBox.No):
+                    QTest.mouseClick(hub.import_button,Qt.LeftButton)
+                self.assertFalse(member_root.exists())
+                self.assertEqual(hub.name.text(),'入力中のプロジェクト')
+                self.assertEqual(hub.projects.count(),0)
+            finally:
+                hub.hide();hub.deleteLater();self.app.processEvents()
+
+    def test_project_share_export_cancel_and_hub_selected_id(self):
+        from project_hub import ProjectHub
+        import project_share,project_share_dialogs
+        hub=ProjectHub(Path(__file__).resolve().parents[1]/'app.py')
+        try:
+            hub.show();self.app.processEvents()
+            for index in range(hub.projects.count()):
+                if hub.projects.item(index).data(Qt.UserRole)==self.other.id:
+                    hub.projects.setCurrentRow(index);break
+            with patch.object(QFileDialog,'getSaveFileName',return_value=('','')),patch.object(project_share_dialogs,'message') as message:
+                QTest.mouseClick(hub.share_button,Qt.LeftButton)
+                message.assert_not_called()
+            output=self.home/'selected-project.cansat-project.json'
+            with patch.object(QFileDialog,'getSaveFileName',return_value=(str(output),'')),patch.object(project_share_dialogs,'message',return_value=QMessageBox.Ok):
+                QTest.mouseClick(hub.share_button,Qt.LeftButton)
+            self.assertEqual(project_share.read_share(output)['project']['id'],self.other.id)
         finally:
             hub.hide();hub.deleteLater();self.app.processEvents()
 

@@ -45,12 +45,14 @@ def check_gui(root, python):
                    PYTHONDONTWRITEBYTECODE='1')
         env.pop('CANSAT_LAB_PROJECT_ID', None)
         env.pop('CANSAT_LAB_PREVIEW', None)
-        for pattern in ('test_project_store.py', 'test_project_gui.py'):
+        for pattern in ('test_project_store.py', 'test_project_share.py', 'test_project_gui.py'):
+            if not (source / 'tests' / pattern).is_file():
+                raise ValueError('公開前の試験ファイルがありません: ' + pattern)
             subprocess.run([python, '-m', 'unittest', 'discover', '-s', 'tests', '-p', pattern, '-v'],
                            cwd=source, env=env, check=True, timeout=120)
 
 
-def publish(source, python, apply=False, remote=client.REMOTE):
+def publish(source, python, apply=False, remote=client.REMOTE, expected_parent=None):
     with tempfile.TemporaryDirectory(prefix='cansat-publish-') as temp:
         root = Path(temp)
         manifest = snapshot(source, root)
@@ -66,6 +68,8 @@ def publish(source, python, apply=False, remote=client.REMOTE):
         git('init', '-b', client.BRANCH)
         existing = git('ls-remote', '--heads', remote, 'refs/heads/' + client.BRANCH)
         previous = existing.split()[0] if existing else None
+        if expected_parent is not None and previous != expected_parent:
+            raise ValueError('試験中に別の人がGUIを更新しました。再実行してください。')
         if previous:
             git('fetch', '--depth=1', '--no-tags', remote, 'refs/heads/' + client.BRANCH)
             fetched = git('rev-parse', 'FETCH_HEAD')

@@ -104,7 +104,7 @@ class ProjectHub(QMainWindow):
         self.projects.setMaximumHeight(230)
         self.projects.setWordWrap(True)
         self.projects.itemDoubleClicked.connect(lambda item: self.open_selected())
-        self.projects.currentItemChanged.connect(lambda current, previous: self.open_button.setEnabled(current is not None))
+        self.projects.currentItemChanged.connect(self.selection_changed)
         existing_layout.addWidget(self.projects)
         self.empty_state = QLabel('保存済みのプロジェクトはまだありません。\n作成すると、ここから再開できます。')
         self.empty_state.setObjectName('projectEmpty')
@@ -117,6 +117,21 @@ class ProjectHub(QMainWindow):
         self.open_button.clicked.connect(self.open_selected)
         self.open_button.setEnabled(False)
         existing_layout.addWidget(self.open_button)
+        share_row = QHBoxLayout()
+        self.import_button = QPushButton('共有ファイルから追加…')
+        self.import_button.setObjectName('projectImportShare')
+        self.import_button.clicked.connect(self.import_shared_project)
+        share_row.addWidget(self.import_button)
+        self.share_button = QPushButton('選択したプロジェクトを共有…')
+        self.share_button.setObjectName('projectExportShare')
+        self.share_button.setEnabled(False)
+        self.share_button.clicked.connect(self.export_shared_project)
+        share_row.addWidget(self.share_button)
+        existing_layout.addLayout(share_row)
+        share_hint = QLabel('共有ファイルで同じプロジェクトを別PCへ登録できます。実験記録・添付は別途共有します。')
+        share_hint.setWordWrap(True)
+        share_hint.setObjectName('projectHint')
+        existing_layout.addWidget(share_hint)
         root.addWidget(existing)
         bottom = QHBoxLayout()
         legacy = QPushButton('既存の実験を開く（未分類）')
@@ -147,9 +162,9 @@ class ProjectHub(QMainWindow):
         self.empty_state.setText('保存済みのプロジェクトはまだありません。\n作成すると、ここから再開できます。')
         self.empty_state.setVisible(not projects)
         for project in projects:
-            item = QListWidgetItem(project.name + '\n' + (project.owner or '担当者未入力'))
+            item = QListWidgetItem(project.name + '\n' + (project.owner or '担当者未入力') + ' ｜ ID: ' + project.id[:8])
             item.setData(Qt.UserRole, project.id)
-            item.setToolTip(project.purpose or project.name)
+            item.setToolTip((project.purpose or project.name) + '\nID: ' + project.id)
             item.setSizeHint(QSize(300, 66))
             self.projects.addItem(item)
             if project.id == selected_id:
@@ -172,6 +187,27 @@ class ProjectHub(QMainWindow):
         item = self.projects.currentItem()
         if item:
             self.launch(item.data(Qt.UserRole))
+
+    def selection_changed(self, current, previous):
+        self.open_button.setEnabled(current is not None)
+        self.share_button.setEnabled(current is not None)
+
+    def import_shared_project(self):
+        from project_share_dialogs import import_project
+        result = import_project(self)
+        if result is not None:
+            self.reload()
+            for index in range(self.projects.count()):
+                item = self.projects.item(index)
+                if item.data(Qt.UserRole) == result.project.id:
+                    self.projects.setCurrentItem(item)
+                    break
+
+    def export_shared_project(self):
+        item = self.projects.currentItem()
+        if item is not None:
+            from project_share_dialogs import export_project
+            export_project(self, item.data(Qt.UserRole))
 
     def launch(self, project_id):
         if self.worker is not None:

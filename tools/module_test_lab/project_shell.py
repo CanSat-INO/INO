@@ -28,6 +28,16 @@ class ProjectDashboard(QWidget):
         button.clicked.connect(host.navigation._open_workflow)
         row.addWidget(button)
         root.addWidget(start)
+        if store.active_id():
+            share_row = QHBoxLayout()
+            share_note = QLabel('メンバーへ同じプロジェクトを渡す')
+            share_note.setWordWrap(True)
+            share_row.addWidget(share_note, 1)
+            share = QPushButton('プロジェクトを共有…')
+            share.setObjectName('projectShareCurrent')
+            share.clicked.connect(self.share_project)
+            share_row.addWidget(share)
+            root.addLayout(share_row)
         groups = (
             ('センサー・解析', (('センサーCSV解析', 'センサー実験・ログ解析'),)),
             ('実験・記録', (('実験台帳', '実験記録・コード版管理（v16）'), ('結果ダッシュボード', '結果ダッシュボード'))),
@@ -59,6 +69,12 @@ class ProjectDashboard(QWidget):
         root.addWidget(all_features)
         root.addStretch(1)
         self.refresh()
+
+    def share_project(self):
+        from project_share_dialogs import export_project
+        project_id = store.active_id()
+        if project_id:
+            export_project(self, project_id)
 
     def refresh(self):
         try:
