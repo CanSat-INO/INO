@@ -1,0 +1,11 @@
+case_id,module,command,landed,expected
+main_landed,1,1,1,1
+main_airborne,1,1,0,0
+cam_landed,2,3,1,1
+cam_airborne,2,3,0,0
+drive_landed_move,3,2,1,1
+drive_airborne_move,3,2,0,0
+drive_emergency_stop,3,4,0,1
+unknown_main_move,1,2,1,-1
+unknown_cam_stop,2,4,1,-1
+unknown_drive_capture,3,3,1,-1

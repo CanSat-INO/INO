@@ -1,0 +1,9 @@
+case_id,visible,red_ratio,x_offset,expected
+not_detected,0,0.0,0,0
+left_target,1,0.2,-0.4,1
+right_target,1,0.2,0.4,2
+center_approach,1,0.2,0.0,3
+reached,1,0.6,0,4
+ratio_boundary,1,0.5,0.3,4
+center_left_boundary,1,0.1,-0.2,3
+center_right_boundary,1,0.1,0.2,3
