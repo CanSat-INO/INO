@@ -72,14 +72,14 @@ class WorkspaceGuiTests(unittest.TestCase):
 
     def test_context_handoff_and_return_without_auto_save(self):
         w = self.workflow
-        self.click(w, '① 解析画面へ')
+        self.click(w, 'CSV解析へ')
         sensor = self.host.v15_sensor_tab
         self.assertIs(self.tabs.currentWidget(), sensor)
         self.assertIsNotNone(sensor.log)
         self.assertIn('静止試験01', w.context_panels[sensor].text())
         self.click(sensor, '実験ワークスペースへ戻る')
         self.assertIs(self.tabs.currentWidget(), w)
-        self.click(w, '② 実験記録票へ')
+        self.click(w, '実験記録票へ')
         journal = self.host.v16_journal_tab
         for key, value in self.context.items():
             self.assertEqual(getattr(journal, key).text(), value)
@@ -91,7 +91,7 @@ class WorkspaceGuiTests(unittest.TestCase):
         self.assertEqual(len(saved), 1)
         self.assertEqual(w.record_id, saved[0]['id'])
         self.assertTrue((records.ATTACHMENTS_DIR / saved[0]['id']).is_dir())
-        self.assertIn('台帳：保存済み', w.progress.text())
+        self.assertIn('台帳に保存済み', w.result_status.text())
         w.memo.setPlainText('次回のメモ')
         self.assertEqual(w.record_id, saved[0]['id'])
         w.context_fields['code_version'].setText('changed')
@@ -123,7 +123,7 @@ class WorkspaceGuiTests(unittest.TestCase):
         compare.do_compare()
         self.assertIsNotNone(compare.result)
         w.set_path(w.measured_path.text(), is_reference=True)
-        self.click(w, '③ ログ比較へ（任意）')
+        self.click(w, 'ログ比較へ')
         self.assertEqual(compare.reference_path.text(), w.measured_path.text())
         self.assertIsNone(compare.result)
         self.assertIsNone(compare.measured_log)
@@ -142,14 +142,14 @@ class WorkspaceGuiTests(unittest.TestCase):
         w = self.workflow
         target = self.home / 'workspace.json'
         with patch.object(QFileDialog, 'getSaveFileName', return_value=(str(target), '')):
-            self.click(w, '作業情報をJSON保存')
+            self.click(w, '下書きを保存…')
         self.assertIn('保存内容と一致', w.save_status.text())
         w.context_fields['name'].setText('未保存の変更')
         with patch.object(QFileDialog, 'getOpenFileName', return_value=(str(target), '')), patch.object(QMessageBox, 'question', return_value=QMessageBox.No):
-            self.click(w, '作業情報をJSON読込')
+            self.click(w, '下書きを開く…')
         self.assertEqual(w.context_fields['name'].text(), '未保存の変更')
         with patch.object(QFileDialog, 'getOpenFileName', return_value=(str(target), '')), patch.object(QMessageBox, 'question', return_value=QMessageBox.Yes), patch('v20_workflow_tab.inspect_csv', side_effect=AssertionError('automatic CSV read')):
-            self.click(w, '作業情報をJSON読込')
+            self.click(w, '下書きを開く…')
         self.assertEqual(w.context(), self.context)
         self.assertIsNone(w.measured_info)
         self.assertIn('保存内容と一致', w.save_status.text())
@@ -215,6 +215,72 @@ class WorkspaceGuiTests(unittest.TestCase):
         self.assertEqual(len(records.load_records()), 1)
         self.assertIsNone(self.workflow.record_id)
 
+    def test_recommended_actions_choose_check_and_open_without_auto_save(self):
+        w=self.workflow;sample=w.measured_path.text();w.set_path('')
+        self.assertEqual(w._recommended_action(),'choose')
+        with patch.object(QFileDialog,'getOpenFileName',return_value=(sample,'')):
+            QTest.mouseClick(w.recommend_button,Qt.LeftButton)
+        self.assertIsNone(w.measured_info);self.assertEqual(w._recommended_action(),'verify')
+        QTest.mouseClick(w.recommend_button,Qt.LeftButton)
+        self.assertIsNotNone(w.measured_info);self.assertEqual(w._recommended_action(),'analysis')
+        QTest.mouseClick(w.recommend_button,Qt.LeftButton)
+        self.assertIs(self.tabs.currentWidget(),self.host.v15_sensor_tab)
+        self.assertEqual(records.load_records(),[])
+
+    def test_direct_comparison_and_record_handoff_do_not_require_analysis(self):
+        w=self.workflow;self.click(w,'ログ比較へ')
+        self.assertIn('compare',w.sent);self.assertNotIn('sensor',w.sent)
+        self.tabs.setCurrentWidget(w);self.click(w,'実験記録票へ')
+        self.assertIn('journal',w.sent);self.assertNotIn('sensor',w.sent)
+        self.assertEqual(records.load_records(),[])
+
+    def test_recommended_return_preserves_journal_inputs_without_handoff_again(self):
+        w=self.workflow;w.to_journal();journal=self.host.v16_journal_tab
+        journal.observed.setText('途中の観測結果');journal.status.setCurrentText('成功')
+        before=journal._form_data();self.tabs.setCurrentWidget(w)
+        self.assertEqual(w._recommended_action(),'review')
+        with patch.object(QMessageBox,'question',side_effect=AssertionError('unexpected replacement prompt')):
+            QTest.mouseClick(w.recommend_button,Qt.LeftButton)
+        self.assertIs(self.tabs.currentWidget(),journal);self.assertEqual(journal._form_data(),before)
+        self.assertEqual(records.load_records(),[])
+
+    def test_result_save_state_detects_journal_edits_and_revert_without_new_records(self):
+        w=self.workflow;w.to_journal();journal=self.host.v16_journal_tab
+        journal.observed.setText('first result');journal.save();before=records.load_records();rid=w.record_id
+        self.assertIn('保存済み',journal.form_status.text());self.assertIn('台帳に保存済み',w.result_status.text())
+        journal.observed.setText('edited result')
+        self.assertIn('未保存の変更',journal.form_status.text());self.assertIn('未保存の変更',w.result_status.text())
+        self.assertEqual(w.record_id,rid);self.assertEqual(records.load_records(),before)
+        journal.observed.setText('first result')
+        self.assertIn('台帳に保存済み',w.result_status.text());self.assertEqual(records.load_records(),before)
+
+    def test_failed_result_save_keeps_previous_snapshot_and_unsaved_warning(self):
+        w=self.workflow;w.to_journal();journal=self.host.v16_journal_tab;journal.save()
+        before=records.load_records();rid=w.record_id;journal.notes.setPlainText('new notes')
+        with patch('v16_experiment_tab.save_experiment',side_effect=OSError('test disk error')),patch.object(QMessageBox,'warning'):
+            journal.save()
+        self.assertEqual(records.load_records(),before);self.assertEqual(journal.form_save_state.record_id,rid)
+        self.assertIn('未保存の変更',journal.form_status.text());self.assertIn('未保存の変更',w.result_status.text())
+
+    def test_direct_actions_and_draft_buttons_stay_visible_while_scrolling(self):
+        w=self.workflow
+        for bottom in (False,True):
+            w.scroll.verticalScrollBar().setValue(w.scroll.verticalScrollBar().maximum() if bottom else 0)
+            self.app.processEvents()
+            for text in ('CSV解析へ','実験記録票へ','ログ比較へ','下書きを保存…','下書きを開く…'):
+                button=next(b for b in w.findChildren(QPushButton) if b.text()==text)
+                self.assertFalse(button.visibleRegion().isEmpty(),text)
+            self.assertFalse(w.recommend_button.visibleRegion().isEmpty())
+            self.assertEqual(w.scroll.horizontalScrollBar().maximum(),0)
+
+    def test_draft_save_is_distinct_from_result_save(self):
+        w=self.workflow;target=self.home/'draft-only.json'
+        with patch.object(QFileDialog,'getSaveFileName',return_value=(str(target),'')):
+            self.click(w,'下書きを保存…')
+        self.assertTrue(target.exists());self.assertIn('保存内容と一致',w.save_status.text())
+        self.assertIn('実験結果：未保存',w.result_status.text());self.assertIsNone(w.record_id)
+        self.assertEqual(records.load_records(),[])
+
     def test_full_app_home_entries_and_workspace_layout(self):
         from app import TestLab
         window = TestLab()
@@ -241,7 +307,7 @@ class WorkspaceGuiTests(unittest.TestCase):
             w.verify_csvs()
             self.app.processEvents()
             self.assertEqual(w.scroll.horizontalScrollBar().maximum(), 0)
-            for text in ('① 解析画面へ', '② 実験記録票へ', '③ ログ比較へ（任意）'):
+            for text in ('CSV解析へ', '実験記録票へ', 'ログ比較へ'):
                 button = next(b for b in w.findChildren(QPushButton) if b.text() == text)
                 self.assertFalse(button.visibleRegion().isEmpty())
             if os.environ.get('CANSAT_GUI_OUTPUT_DIR'):

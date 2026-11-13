@@ -48,7 +48,7 @@ def check_gui(root, python):
         # Missing Qt must fail the release instead of becoming a skipped GUI suite.
         subprocess.run([python,'-c','from PySide6.QtTest import QTest; from PySide6.QtWidgets import QApplication'],
                        cwd=source,env=env,check=True,timeout=30)
-        for pattern in ('test_project_store.py', 'test_project_share.py', 'test_project_auto.py', 'test_project_storage.py', 'test_record_trash.py',
+        for pattern in ('test_workspace_ui_state.py','test_project_store.py', 'test_project_share.py', 'test_project_auto.py', 'test_project_storage.py', 'test_record_trash.py',
                         'test_project_gui.py', 'test_project_auto_gui.py','test_project_storage_gui.py','test_v20_workspace_gui.py','test_beginner_hub_gui.py'):
             if not (source / 'tests' / pattern).is_file():
                 raise ValueError('公開前の試験ファイルがありません: ' + pattern)

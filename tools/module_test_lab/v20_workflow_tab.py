@@ -11,6 +11,8 @@ from v20_workflow_core import (
     CONTEXT_LIMITS, inspect_csv, load_session, make_session, save_session, verify_session_file,
 )
 
+from workspace_ui_state import recommended_action
+
 ROOT = Path(__file__).resolve().parent
 WORKSPACE_LABEL = '共通基盤・実験ワークフロー（v20）'
 CONTEXT_LABELS = {'name': '実験名', 'tester': '担当者', 'hardware': '使用機器', 'code_version': 'コード版'}
@@ -38,10 +40,20 @@ class WorkflowV20Tab(QWidget):
         summary_layout.setContentsMargins(12, 8, 12, 8)
         summary_layout.setSpacing(4)
         self.progress, self.next_step, self.save_status = QLabel(), QLabel(), QLabel()
-        for label in (self.progress, self.next_step, self.save_status):
+        self.result_status = QLabel(); self.result_status.setObjectName('v20ResultSaveState')
+        for label in (self.progress, self.result_status, self.save_status, self.next_step):
             label.setWordWrap(True)
             label.setTextFormat(Qt.PlainText)
             summary_layout.addWidget(label)
+        guide_row = QHBoxLayout()
+        self.recommend_button = QPushButton()
+        self.recommend_button.setObjectName('v20RecommendedAction')
+        self.recommend_button.setProperty('v13Role','primary')
+        self.recommend_button.clicked.connect(self.recommended_step)
+        guide_row.addWidget(self.recommend_button)
+        guide_note = QLabel('順番は目安です。解析・記録・比較へ直接進めます。')
+        guide_note.setWordWrap(True); guide_row.addWidget(guide_note,1)
+        summary_layout.addLayout(guide_row)
         layout.addWidget(summary)
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -52,10 +64,10 @@ class WorkflowV20Tab(QWidget):
         root = QVBoxLayout(body)
         root.setContentsMargins(17, 10, 17, 20)
         root.setSpacing(10)
-        title = QLabel('v20｜実験ワークスペース')
+        title = QLabel('実験ワークスペース')
         title.setStyleSheet('font-size: 22px; font-weight: 800; color: #143B74;')
         root.addWidget(title)
-        subtitle = QLabel('共通情報 → CSV確認 → 解析 → 記録票で保存。比較は必要なときに行います。実機・地上局・ROS 2には接続しません。')
+        subtitle = QLabel('共通情報とCSVを各画面へ引き継ぎます。必要な機能を自由に選べます。実機・地上局・ROS 2には接続しません。')
         subtitle.setWordWrap(True)
         root.addWidget(subtitle)
         common = QGroupBox('1．共通の実験情報')
@@ -104,7 +116,7 @@ class WorkflowV20Tab(QWidget):
         meta.addWidget(demo)
         meta.addStretch(1)
         fields.addLayout(meta)
-        self.verify_button = QPushButton('CSVを確認（件数・SHA256）')
+        self.verify_button = QPushButton('CSVを確認する')
         self.verify_button.clicked.connect(self.verify_csvs)
         fields.addWidget(self.verify_button)
         self.status = QLabel('CSVを選択してください。情報だけを先にJSON保存することもできます。')
@@ -112,30 +124,40 @@ class WorkflowV20Tab(QWidget):
         self.status.setTextFormat(Qt.PlainText)
         self.status.setObjectName('v13ExperimentStatus')
         fields.addWidget(self.status)
+        details_button = QPushButton('CSVの詳細（SHA256など）')
+        details_button.setCheckable(True)
+        self.csv_details = QLabel()
+        self.csv_details.setObjectName('v20CsvDetails')
+        self.csv_details.setWordWrap(True); self.csv_details.setTextFormat(Qt.PlainText)
+        self.csv_details.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        fields.addWidget(details_button); fields.addWidget(self.csv_details)
+        self.csv_details.hide(); details_button.toggled.connect(self.csv_details.setVisible)
         root.addWidget(intake)
-        actions = QGroupBox('3．解析・記録へ進む')
-        row = QHBoxLayout(actions)
-        for text, callback in (('① 解析画面へ', self.to_sensor), ('② 実験記録票へ', self.to_journal), ('③ ログ比較へ（任意）', self.to_compare)):
+        actions = QGroupBox('必要な操作を選ぶ')
+        action_layout = QVBoxLayout(actions)
+        row = QHBoxLayout()
+        action_layout.addLayout(row)
+        for text, callback in (('CSV解析へ', self.to_sensor), ('実験記録票へ', self.to_journal), ('ログ比較へ', self.to_compare)):
             button = QPushButton(text)
             button.clicked.connect(callback)
             row.addWidget(button)
         layout.addWidget(actions)
-        warning = QLabel('共通情報とCSVを引き継ぎます。台帳への保存はv16で「実験記録を保存」を押してください。実機の合否・比較の信号と単位は担当者が確認します。')
+        warning = QLabel('実験結果は記録票の「実験記録を保存」で台帳へ登録します。合否・信号・単位は担当者が確認してください。')
         warning.setWordWrap(True)
         root.addWidget(warning)
-        saved = QGroupBox('4．作業情報を保存・再開')
+        saved = QGroupBox('作業メモ・下書きの説明')
         saved_layout = QVBoxLayout(saved)
         self.memo = QPlainTextEdit()
         self.memo.setPlaceholderText('次の作業や配線変更のメモ（3000文字以内）')
         self.memo.setMaximumHeight(65)
         saved_layout.addWidget(self.memo)
         saves = QHBoxLayout()
-        for text, callback in (('作業情報をJSON保存', self.export_session), ('作業情報をJSON読込', self.import_session)):
+        for text, callback in (('下書きを保存…', self.export_session), ('下書きを開く…', self.import_session)):
             button = QPushButton(text)
             button.clicked.connect(callback)
             saves.addWidget(button)
-        saved_layout.addLayout(saves)
-        tip = QLabel('作業JSONは共通情報・メモ・CSVのパスとSHA256を保存します。CSV本体・台帳の記録は含みません。JSON読込後はCSVを再確認してください。共有前に担当者名やパスを確認してください。')
+        action_layout.addLayout(saves)
+        tip = QLabel('下書きは共通情報・メモ・CSVの場所と確認情報をJSONに保存します。CSV本体や記録票の観測結果・添付は含みません。再開時はCSVを確認してください。')
         tip.setWordWrap(True)
         saved_layout.addWidget(tip)
         root.addWidget(saved)
@@ -162,6 +184,7 @@ class WorkflowV20Tab(QWidget):
         self.kind.currentTextChanged.connect(self._edited)
         self.memo.textChanged.connect(self._edited)
         self.host.v16_journal_tab.record_saved.connect(self._record_saved)
+        self.host.v16_journal_tab.form_state_changed.connect(self._refresh_state)
         self._refresh_state()
 
     def context(self):
@@ -184,23 +207,46 @@ class WorkflowV20Tab(QWidget):
             self.last_identity = identity
         self._refresh_state()
 
+    def _recommended_action(self):
+        return recommended_action(
+            has_csv=bool(self.measured_path.text().strip()),
+            verified=bool(self.measured_info and (not self.reference_path.text() or self.reference_info)),
+            analysis_opened='sensor' in self.sent, journal_opened='journal' in self.sent,
+            record_saved=bool(self.record_id))
+
+    def recommended_step(self):
+        action = self._recommended_action()
+        if action == 'choose': self.pick_csv()
+        elif action == 'verify': self.verify_csvs()
+        elif action == 'analysis': self.to_sensor()
+        elif action == 'journal': self.to_journal()
+        else: self.open_label('実験記録・コード版管理（v16）')
+
     def _refresh_state(self):
         self.progress.setText('CSV：' + ('確認済み' if self.measured_info else '未確認')
                               + ' ｜ 解析：' + ('引継ぎ済み' if 'sensor' in self.sent else '未引継ぎ')
-                              + ' ｜ 台帳：' + (f'保存済み（ID: {self.record_id}）' if self.record_id else '未保存')
-                              + ' ｜ 比較（任意）：' + ('引継ぎ済み' if 'compare' in self.sent else '未引継ぎ'))
-        if not self.measured_info:
-            step = 'CSVを選び「CSVを確認」を押してください。'
-        elif 'sensor' not in self.sent:
-            step = '「① 解析画面へ」でグラフ・統計を確認してください。'
-        elif not self.record_id:
-            step = '「② 実験記録票へ」で条件・結果を確認し、v16で保存してください。'
+                              + ' ｜ 比較：' + ('引継ぎ済み' if 'compare' in self.sent else '未引継ぎ'))
+        if self.record_id:
+            journal = self.host.v16_journal_tab
+            changed = (journal.form_save_state.record_id == self.record_id
+                       and journal.form_save_state.state(journal._form_data()) == 'changed')
+            text = ('実験結果：前回の保存後、記録票に未保存の変更あり' if changed else
+                    '実験結果：このPCの台帳に保存済み')
+            self.result_status.setText(text + f'（ID：{self.record_id[:8]}）｜共有状況はホームで確認')
         else:
-            step = '台帳の保存を確認しました。必要なら比較、作業を再開するならJSON保存を行ってください。'
-        self.next_step.setText('次の操作：' + step)
+            self.result_status.setText('実験結果：未保存。記録票で「実験記録を保存」を押してください。')
+        self.result_status.setToolTip(self.record_id or '')
         state = '未保存' if self.saved_snapshot is None else ('保存内容と一致' if self.saved_snapshot == self._snapshot() else '未保存の変更あり')
-        self.save_status.setText('作業JSON：' + state + (f' ｜ {Path(self.session_path).name[:80]}' if self.session_path else '') + '（台帳とは別）')
+        self.save_status.setText('下書き：' + state + (f' ｜ {Path(self.session_path).name[:80]}' if self.session_path else '') + '（実験結果とは別）')
         self.save_status.setToolTip(str(self.session_path or ''))
+        labels = {'choose':'CSVを選ぶ…','verify':'CSVを確認する','analysis':'CSV解析へ',
+                  'journal':'実験記録票へ','review':'入力中の実験記録票へ戻る','history':'実験記録・履歴を開く'}
+        self.recommend_button.setText('おすすめ：' + labels[self._recommended_action()])
+        self.next_step.setText('CSV選択 → 確認 → 必要なら解析・比較 → 記録票で保存。途中の機能からも使えます。')
+        details = []
+        for name,info in (('測定CSV',self.measured_info),('参考CSV',self.reference_info)):
+            if info: details.append(f'{name}: {info.path}\nSHA256: {info.sha256}\n{info.rows}行 / {info.signals}信号')
+        self.csv_details.setText('\n\n'.join(details) or 'CSVを確認すると、パス・件数・SHA256を表示します。')
 
     def _show_context(self, tab):
         if tab not in self.context_panels:
@@ -266,7 +312,7 @@ class WorkflowV20Tab(QWidget):
                 self.record_id = None
             self.measured_info, self.reference_info = measured, reference
             self.imported = None
-            self.status.setText(f'CSV確認済み（実機合否ではありません）：{measured.name} / {measured.rows}行・{measured.signals}信号 / SHA256 {measured.sha256[:14]}…'
+            self.status.setText(f'CSV確認済み（実機合否ではありません）：{measured.name} / {measured.rows}行・{measured.signals}信号'
                                 + (f'　参考：{reference.rows}行・{reference.signals}信号' if reference else ''))
             self._refresh_state()
             return True
@@ -358,7 +404,7 @@ class WorkflowV20Tab(QWidget):
 
     def export_session(self):
         if (self.measured_path.text() or self.reference_path.text()) and not self._ensure_fresh(): return
-        dest, _ = QFileDialog.getSaveFileName(self, '作業情報を保存', export_path('cansat_v20_workflow.json', session=True), 'JSON (*.json)')
+        dest, _ = QFileDialog.getSaveFileName(self, '下書きを保存', export_path('cansat_v20_workflow.json', session=True), 'JSON (*.json)')
         if not dest: return
         try:
             item = make_session(self.measured_info, self.reference_info, kind=self.kind.currentText(), memo=self.memo.toPlainText(), context=self.context())
@@ -368,17 +414,17 @@ class WorkflowV20Tab(QWidget):
             self.saved_snapshot = self._snapshot()
             self._refresh_state()
         except (ValueError, OSError, TypeError) as exc:
-            QMessageBox.warning(self, '作業情報の保存失敗', str(exc))
+            QMessageBox.warning(self, '下書きの保存失敗', str(exc))
 
     def import_session(self):
-        source, _ = QFileDialog.getOpenFileName(self, '作業情報を選択', '', 'JSON (*.json)')
+        source, _ = QFileDialog.getOpenFileName(self, '下書きを開く', '', 'JSON (*.json)')
         if not source: return
         try:
             item = load_session(source)
             if item.get("project_id", active_id() or "legacy") != (active_id() or "legacy"):
                 raise ValueError("別プロジェクトの作業JSONです。対応するプロジェクトへ切り替えてください。")
         except (ValueError, OSError, UnicodeError, TypeError) as exc:
-            QMessageBox.warning(self, '作業情報の読込失敗', str(exc))
+            QMessageBox.warning(self, '下書きの読込失敗', str(exc))
             return
         has_draft = any(self.context().values()) or self.measured_path.text() or self.reference_path.text() or self.memo.toPlainText() or self.kind.currentText() != 'サンプル'
         if has_draft and self.saved_snapshot != self._snapshot() and QMessageBox.question(

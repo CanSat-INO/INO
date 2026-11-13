@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from project_store import export_path
+from workspace_ui_state import FormSaveState
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -25,11 +26,13 @@ from v16_experiment_core import (
 
 class ExperimentJournalV16Tab(QWidget):
     record_saved = Signal(dict)
+    form_state_changed = Signal()
 
     def __init__(self, *, host=None, parent=None):
         super().__init__(parent)
         self.host = host
         self.visible_records = []
+        self.form_save_state = FormSaveState()
         root = QVBoxLayout(self)
         title = QLabel('v16｜ブレッドボード実験・コード版・ログ管理')
         title.setStyleSheet('font-size: 19px; color: #17365e; font-weight: bold;')
@@ -41,6 +44,11 @@ class ExperimentJournalV16Tab(QWidget):
         )
         intro.setWordWrap(True)
         root.addWidget(intro)
+        self.form_status = QLabel()
+        self.form_status.setObjectName('v16FormSaveState')
+        self.form_status.setWordWrap(True)
+        self.form_status.setTextFormat(Qt.PlainText)
+        root.addWidget(self.form_status)
 
         form = QGroupBox('新しい実験の記録（保存ボタンを押すまで登録されません）')
         grid = QGridLayout(form)
@@ -109,7 +117,7 @@ class ExperimentJournalV16Tab(QWidget):
         actions.addStretch(1)
         root.addLayout(actions)
         share_row = QHBoxLayout()
-        share_row.addWidget(QLabel('GitHub共有（INO）：'))
+        share_row.addWidget(QLabel('GitHub共有：'))
         self.github_buttons = []
         for label, action in [
             ('接続確認', 'check'),
@@ -192,6 +200,25 @@ class ExperimentJournalV16Tab(QWidget):
         splitter.setSizes([290, 130])
         root.addWidget(splitter, 1)
         self.reload()
+        for name in ('name','tester','board','code_version','hardware','wiring','expected','observed','csv_path','code_path'):
+            getattr(self,name).textChanged.connect(self._refresh_form_state)
+        for combo in (self.module,self.phase,self.status):
+            combo.currentTextChanged.connect(self._refresh_form_state)
+        self.notes.textChanged.connect(self._refresh_form_state)
+        self._refresh_form_state()
+
+    def _refresh_form_state(self, *_):
+        state = self.form_save_state.state(self._form_data())
+        record_id = self.form_save_state.record_id
+        if state == 'unsaved':
+            text = '実験結果：未保存。「実験記録を保存」でこのPCの台帳に登録します。'
+        elif state == 'changed':
+            text = '実験結果：前回の保存後に未保存の変更があります。'
+        else:
+            text = '実験結果：この入力をこのPCの台帳に保存済み。'
+        self.form_status.setText(text + (f' 前回のID：{record_id[:8]}' if record_id else ''))
+        self.form_status.setToolTip(record_id or '')
+        self.form_state_changed.emit()
 
     def github_action(self, action):
         """Use the already-existing host GitHub worker, never run Git in the UI."""
@@ -271,6 +298,8 @@ class ExperimentJournalV16Tab(QWidget):
             QMessageBox.warning(self, '実験記録を保存できません', str(exc))
             return
         self.message.setText('記録を保存しました。ID: ' + result['id'] + '（ローカル台帳）')
+        self.form_save_state.mark_saved(self._form_data(), result['id'])
+        self._refresh_form_state()
         self.record_saved.emit(result)
         self.reload()
         if self.host is not None and hasattr(self.host, 'refresh_ledger'):
