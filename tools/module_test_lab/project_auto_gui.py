@@ -3,7 +3,7 @@ from datetime import datetime
 import copy
 import time
 from PySide6.QtCore import Qt, QObject, QThread, QTimer, Signal
-from PySide6.QtWidgets import QGroupBox,QVBoxLayout,QHBoxLayout,QCheckBox,QLabel,QPushButton,QListWidget,QListWidgetItem,QMessageBox,QLineEdit
+from PySide6.QtWidgets import QGroupBox,QVBoxLayout,QHBoxLayout,QCheckBox,QLabel,QPushButton,QListWidget,QListWidgetItem,QMessageBox,QLineEdit,QWidget
 import project_auto_core as core
 import project_store as store
 import project_share
@@ -178,24 +178,39 @@ class AutoPanel(QGroupBox):
 
 class CatalogPanel(QGroupBox):
     def __init__(self,host):
-        super().__init__('GitHubの共有プロジェクト')
+        super().__init__('班のリンクから参加')
         self.host=host;self.docs={};self.cache={};self.last_attempt=0
         try:self.source=settings.catalog()
         except (ValueError,OSError):self.source={'repository':'','branch':'main','enabled':False}
         layout=QVBoxLayout(self)
+        hint=QLabel('班から案内されたGitHubリポジトリのリンクを貼り付けて、プロジェクトを探してください。')
+        hint.setWordWrap(True); layout.addWidget(hint)
         source_row=QHBoxLayout()
-        self.repository=QLineEdit(self.source['repository']);self.repository.setPlaceholderText('班から案内された owner/repository')
+        self.repository=QLineEdit(self.source['repository'])
+        self.repository.setPlaceholderText('例：https://github.com/CanSat-INO/INO')
+        self.repository.setAccessibleName('班のGitHubリポジトリのリンク')
         self.repository.setObjectName('projectCatalogRepository');source_row.addWidget(self.repository,3)
-        self.branch=QLineEdit(self.source['branch']);self.branch.setMaximumWidth(130);source_row.addWidget(self.branch)
-        apply=QPushButton('取得先を設定');apply.clicked.connect(self.set_source);source_row.addWidget(apply)
+        self.search_button=QPushButton('プロジェクトを探す')
+        self.search_button.setObjectName('projectCatalogSearch')
+        self.search_button.clicked.connect(self.search);source_row.addWidget(self.search_button)
+        self.repository.returnPressed.connect(self.search)
         layout.addLayout(source_row)
-        self.checkbox=QCheckBox('班の共有プロジェクトを自動で取得する（約60秒ごと）')
+        details=QPushButton('詳細設定（通常は変更不要）')
+        details.setObjectName('projectCatalogDetails');details.setCheckable(True);layout.addWidget(details)
+        self.details_area=QWidget()
+        detail_layout=QHBoxLayout(self.details_area);detail_layout.setContentsMargins(0,0,0,0)
+        detail_layout.addWidget(QLabel('班から指定されたブランチ'))
+        self.branch=QLineEdit(self.source['branch']);self.branch.setObjectName('projectCatalogBranch')
+        detail_layout.addWidget(self.branch,1)
+        layout.addWidget(self.details_area);self.details_area.hide()
+        details.toggled.connect(self.details_area.setVisible)
+        self.checkbox=QCheckBox('参加候補の一覧を自動更新する（約60秒ごと）')
         self.checkbox.setObjectName('projectCatalogEnabled');layout.addWidget(self.checkbox)
         self.items=QListWidget();self.items.setMaximumHeight(110);self.items.setMinimumHeight(60)
         self.items.setObjectName('projectCatalogList');layout.addWidget(self.items)
         self.join=QPushButton('選択した共有プロジェクトに参加して開く')
         self.join.setObjectName('projectCatalogJoin');self.join.setEnabled(False);layout.addWidget(self.join)
-        self.status=QLabel('自動取得OFF');self.status.setTextFormat(Qt.PlainText);self.status.setWordWrap(True)
+        self.status=QLabel('リンクを入れて「プロジェクトを探す」を押してください。');self.status.setTextFormat(Qt.PlainText);self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.background=CatalogController(self)
         self.items.currentItemChanged.connect(lambda current,previous:self.join.setEnabled(current is not None))
@@ -206,14 +221,22 @@ class CatalogPanel(QGroupBox):
         self.items.setVisible(self.checkbox.isChecked());self.join.setVisible(self.checkbox.isChecked())
     def set_source(self):
         if self.background.worker is not None:
-            message(self.host,'取得中','通信の終了後に取得先を変更してください。');return
+            message(self.host,'取得中','通信の終了後に取得先を変更してください。');return False
         try:
             repo,branch=settings.destination(self.repository.text(),self.branch.text())
             settings.catalog(False,repository=repo,branch=branch,enabled=False)
             self.source=settings.catalog();self.checkbox.setChecked(False)
             self.docs={};self.cache={};self.items.clear();self.join.setEnabled(False)
-            self.status.setText(f'取得先：{repo} / {branch}。自動取得をONにすると一覧を読み込みます。')
-        except (ValueError,OSError) as exc:message(self.host,'取得先を保存できません',str(exc),warning=True)
+            self.status.setText(f'共有先：{repo} / {branch}')
+            return True
+        except (ValueError,OSError) as exc:
+            message(self.host,'リンクを確認してください',str(exc),warning=True)
+            return False
+    def search(self):
+        if self.set_source():
+            self.checkbox.setChecked(True)
+            if self.background.worker is None and self.background.next_allowed>time.monotonic():
+                self.status.setText('通信の待機中です。少し待つと自動で再確認します。')
     def toggle(self,value):
         try:core.set_catalog_enabled(value)
         except (OSError,ValueError) as exc:
@@ -223,7 +246,7 @@ class CatalogPanel(QGroupBox):
         if value:self.last_attempt=0;self.background.tick()
         else:
             if self.background.worker:self.background.worker.requestInterruption()
-            self.status.setText('自動取得OFF')
+            self.status.setText('一覧の自動更新は停止中です。「プロジェクトを探す」で再確認できます。')
     def joined_catalog(self,result):
         if not self.checkbox.isChecked() or self.background.closing:return
         self.cache=result['cache'];selected=self.items.currentItem()
@@ -235,7 +258,7 @@ class CatalogPanel(QGroupBox):
             item.setData(Qt.UserRole,p['id']);self.items.addItem(item)
             if p['id']==selected_id:self.items.setCurrentItem(item)
         self.background.failures=0;self.background.next_allowed=0
-        self.status.setText(f'共有プロジェクト {len(self.docs)}件。選んで参加できます。')
+        self.status.setText(f'{len(self.docs)}件見つかりました。プロジェクトを選んで参加してください。' if self.docs else '共有プロジェクトはまだありません。作成した人に、プロジェクトのホームで自動共有をONにしてもらってください。')
     def join_project(self):
         item=self.items.currentItem()
         if item is None:return

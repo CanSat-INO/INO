@@ -128,6 +128,7 @@ class ProjectGuiTests(unittest.TestCase):
         hub=ProjectHub(Path(__file__).resolve().parents[1]/'app.py')
         try:
             hub.show();self.app.processEvents()
+            QTest.mouseClick(hub.create_toggle,Qt.LeftButton)
             with patch.object(hub,'launch') as launch:
                 hub.name.setText('New GUI project')
                 hub.owner.setText('Team C')
@@ -197,6 +198,7 @@ class ProjectGuiTests(unittest.TestCase):
             try:
                 hub.show();self.app.processEvents()
                 self.assertFalse(hub.share_button.isEnabled())
+                QTest.mouseClick(hub.join_button,Qt.LeftButton)
                 with patch.object(QFileDialog,'getOpenFileName',return_value=(str(output),'')),patch.object(project_share_dialogs,'message',return_value=QMessageBox.Yes),patch.object(hub,'launch') as launch:
                     QTest.mouseClick(hub.import_button,Qt.LeftButton)
                     self.app.processEvents()
@@ -228,6 +230,7 @@ class ProjectGuiTests(unittest.TestCase):
             hub=ProjectHub(Path(__file__).resolve().parents[1]/'app.py')
             try:
                 hub.show();hub.name.setText('入力中のプロジェクト');self.app.processEvents()
+                QTest.mouseClick(hub.join_button,Qt.LeftButton)
                 with patch.object(QFileDialog,'getOpenFileName',return_value=(str(output),'')),patch.object(project_share_dialogs,'message',return_value=QMessageBox.No):
                     QTest.mouseClick(hub.import_button,Qt.LeftButton)
                 self.assertFalse(member_root.exists())
@@ -242,6 +245,7 @@ class ProjectGuiTests(unittest.TestCase):
         hub=ProjectHub(Path(__file__).resolve().parents[1]/'app.py')
         try:
             hub.show();self.app.processEvents()
+            QTest.mouseClick(hub.more_toggle,Qt.LeftButton)
             for index in range(hub.projects.count()):
                 if hub.projects.item(index).data(Qt.UserRole)==self.other.id:
                     hub.projects.setCurrentRow(index);break
