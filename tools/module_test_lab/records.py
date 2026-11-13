@@ -11,6 +11,9 @@ import shutil
 import tempfile
 import uuid
 import zipfile
+import contextlib
+import functools
+import threading
 
 import project_store
 
@@ -20,14 +23,60 @@ ATTACHMENTS_DIR = DATA_DIR / "attachments"
 FORMAT = "cansat-module-lab-records"
 FORMAT_VERSION = 1
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+_mutex = threading.RLock()
+_transaction_state = threading.local()
 
 
+@contextlib.contextmanager
+def transaction():
+    """Serialize complete ledger changes across UI, workers and processes."""
+    with _mutex:
+        if getattr(_transaction_state, 'depth', 0):
+            yield
+            return
+        project_store._safe_chain(DATA_DIR)
+        project_store._safe_chain(RECORDS_FILE)
+        project_store._safe_chain(ATTACHMENTS_DIR)
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        path = project_store._safe_chain(DATA_DIR / '.records.lock')
+        with path.open('a+b') as stream:
+            if os.name == 'posix':
+                import fcntl
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+            else:
+                import msvcrt
+                if stream.tell() == 0:
+                    stream.write(b'0');stream.flush()
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
+            _transaction_state.depth = 1
+            try:
+                yield
+            finally:
+                _transaction_state.depth = 0
+                if os.name == 'posix':
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+                else:
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def locked(function):
+    @functools.wraps(function)
+    def wrapped(*args, **kwargs):
+        with transaction():
+            return function(*args, **kwargs)
+    return wrapped
+
+
+@locked
 def setup_data():
     ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
     if not RECORDS_FILE.exists():
         save_records([])
 
 
+@locked
 def load_records() -> list[dict]:
     setup_data()
     data = json.loads(RECORDS_FILE.read_text(encoding="utf-8"))
@@ -36,6 +85,7 @@ def load_records() -> list[dict]:
     return data["records"]
 
 
+@locked
 def save_records(records: list[dict]):
     records = [project_store.validate_record_project(record) for record in records]
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -73,6 +123,7 @@ def new_record(**kwargs) -> dict:
     return result
 
 
+@locked
 def add_record(record: dict, attachment_sources: list[Path] | None = None) -> dict:
     record = project_store.validate_record_project(record)
     existing = load_records()
@@ -97,6 +148,7 @@ def add_record(record: dict, attachment_sources: list[Path] | None = None) -> di
     return record
 
 
+@locked
 def store_trace(record: dict, trace: list[dict]):
     project_store.validate_record_project(record)
     ATTACHMENTS_DIR.joinpath(record["id"]).mkdir(parents=True, exist_ok=True)
@@ -109,6 +161,7 @@ def store_trace(record: dict, trace: list[dict]):
         "sha256": hashlib.sha256(dest.read_bytes()).hexdigest(), "bytes": dest.stat().st_size})
 
 
+@locked
 def export_bundle(record_ids: list[str], destination: Path) -> int:
     records = [r for r in load_records() if r["id"] in set(record_ids)]
     if not records:
@@ -126,6 +179,7 @@ def export_bundle(record_ids: list[str], destination: Path) -> int:
     return len(records)
 
 
+@locked
 def import_bundle(bundle_path: Path) -> dict:
     existing = load_records()
     known = {r["id"]: r for r in existing}

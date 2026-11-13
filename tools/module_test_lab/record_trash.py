@@ -94,6 +94,7 @@ def _archive_root(archive_dir: Path | None) -> Path:
     return trash_dir() if active_id() else records.DATA_DIR.parent / TRASH_DIR_NAME
 
 
+@records.locked
 def delete_selected(record_ids: list[str], archive_dir: Path | None = None) -> dict:
     """Archive and remove *only* the selected local records and their files."""
     ids = list(dict.fromkeys(record_ids))
@@ -162,6 +163,7 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
+@records.locked
 def restore_archive(archive: Path) -> dict:
     """Restore only absent records, never overwrite existing local IDs or files."""
     archive = Path(archive)

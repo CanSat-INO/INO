@@ -209,14 +209,15 @@ class GitHubSyncWorker(QThread):
     succeeded = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, action: str, ids: list[str] | None = None):
+    def __init__(self, action: str, ids: list[str] | None = None, destination=None):
         super().__init__()
         self.action = action
         self.ids = ids or []
+        self.destination = destination or (REPO_DEFAULT,BRANCH_DEFAULT)
 
     def run(self):
         try:
-            sync = GitHubSync(REPO_DEFAULT, BRANCH_DEFAULT)
+            sync = GitHubSync(*self.destination)
             if self.action == "check":
                 result = {"connection": sync.check_access()}
             elif self.action == "upload":
@@ -547,6 +548,11 @@ class TestLab(QMainWindow):
         if self._sync_worker is not None:
             QMessageBox.warning(self, '同期中', 'GitHub同期が終わってから削除してください。')
             return
+        try:
+            from project_settings import current_destination
+            repository,branch=current_destination()
+        except (ValueError,OSError) as exc:
+            QMessageBox.warning(self,'共有先を指定してください',str(exc));return
         ids = list(dict.fromkeys(record_ids if record_ids is not None else self.selected_ids()))
         if not ids:
             QMessageBox.information(self, '記録未選択', '削除する実験の行を選択してください。複数選択できます。')
@@ -624,9 +630,18 @@ class TestLab(QMainWindow):
             QMessageBox.critical(self, "取り込みエラー", str(exc))
 
     def start_github_sync(self, action, record_ids=None):
+        auto = getattr(self, 'project_auto', None)
+        if auto is not None and not auto.manual_allowed():
+            QMessageBox.information(self, "自動共有を利用中", "手動同期を使う場合はホームで自動共有をOFFにし、通信の終了を待ってください。")
+            return
         if self._sync_worker is not None:
             QMessageBox.information(self, "GitHub同期中", "前の通信が終わるまでお待ちください。")
             return
+        try:
+            from project_settings import current_destination
+            repository,branch=current_destination()
+        except (ValueError,OSError) as exc:
+            QMessageBox.warning(self,'共有先を指定してください',str(exc));return
         ids = list(dict.fromkeys(record_ids if record_ids is not None else
                                  (self.selected_ids() if action == "upload" else [])))
         if action == "upload" and not ids:
@@ -648,7 +663,7 @@ class TestLab(QMainWindow):
                 summary.append(f"・{rec.get('scenario', '名称なし')[:50]}  [添付: {names[:110]}]")
             if len(selected) > 8:
                 summary.append(f"…ほか {len(selected) - 8} 件")
-            question = (f"{len(ids)}件の実験記録を {REPO_DEFAULT} / {BRANCH_DEFAULT} へ直接送信します。\n"
+            question = (f"{len(ids)}件の実験記録を {repository} / {branch} へ直接送信します。\n" +
                         "\n".join(summary) + "\n\n"
                         "添付したCSV・ソースコードも送信対象です。\n"
                         "個人情報・パスワード・トークンなどを含まないか確認しましたか？\n"
@@ -662,7 +677,7 @@ class TestLab(QMainWindow):
             self.v16_journal_tab.set_sync_busy(True)
             self.v16_journal_tab.set_sync_status("GitHubと通信中です。完了までアプリを閉じないでください。")
         self.github_status.setText("GitHubと通信しています。完了するまでアプリを閉じないでください。")
-        worker = GitHubSyncWorker(action, ids)
+        worker = GitHubSyncWorker(action, ids,(repository,branch))
         self._sync_worker = worker
         worker.succeeded.connect(lambda result, a=action: self._on_sync_success(a, result))
         worker.failed.connect(self._on_sync_failure)
@@ -751,7 +766,17 @@ class TestLab(QMainWindow):
                 temp_path.unlink(missing_ok=True)
 
     def closeEvent(self, event):
+        packages=getattr(self,'project_packages',None)
+        if packages is not None and packages.before_close():
+            event.ignore();return
+        auto = getattr(self, 'project_auto', None)
+        if auto is not None and auto.before_close():
+            event.ignore()
+            return
         if self._sync_worker is not None and self._sync_worker.isRunning():
+            if auto is not None:
+                auto.resume()
+            if packages is not None:packages.resume()
             event.ignore()
             QMessageBox.information(self, "GitHub同期中", "通信が完了してからアプリを閉じてください。")
             return
@@ -763,6 +788,9 @@ class TestLab(QMainWindow):
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
         )
         if choice != QMessageBox.Yes:
+            if auto is not None:
+                auto.resume()
+            if packages is not None:packages.resume()
             event.ignore()
             return
         super().closeEvent(event)
@@ -796,14 +824,14 @@ class TestLab(QMainWindow):
 
 【GitHub共有（v2）】
 ・Ubuntuで gh auth login 済みであることを確認してください。
-・「接続確認」で CanSat-INO/INO の参照権限を確認します。
+・プロジェクトのホーム「共有設定」でGitHub共有先とZIPの場所を指定します。
 ・記録行を選んで「選択結果をGitHubに送信」→ 内容確認 → 送信します。
 ・他メンバーの実験は「チーム結果をGitHubから取得」で取り込みます。
-・保存先は非公開リポジトリ CanSat-INO/INO の main ブランチです。
+・名前付きプロジェクトの保存先はプロジェクトごとに設定します。未分類の従来機能はCanSat-INO/INOです。
 ・個々の実験を experiments/records/ID.json に独立して保存します。
 ・添付は experiments/attachments/ID/ 配下に保存します（1ファイル900KB以内）。
 ・ローカル記録は ~/cansat_module_lab_data に残り、既存IDは上書きしません。
-・GitHub同期は手動実行であり、操作しない限りアップロードしません。
+・手動同期に加え、ホームで自動共有をONにしたプロジェクトは保存済み記録を自動送受信します。
 ・ソースコードのGit操作やGitHub Projectsの更新はしません。
 
 【Arduino/外部CSVログ解析（v4）】

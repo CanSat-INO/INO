@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 SPACE_STYLE = '''
-QMainWindow, QWidget#projectHub { background: #07101D; }
+QMainWindow, QDialog, QWidget#projectHub { background: #07101D; }
 QWidget#projectHubBody { background: #07101D; }
 QWidget { color: #DFEAF5; font-size: 13px; }
 QLabel { color: #DFEAF5; background: transparent; }

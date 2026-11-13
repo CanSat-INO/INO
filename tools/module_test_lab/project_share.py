@@ -29,15 +29,26 @@ def validate(document):
             document.get('format') != FORMAT):
         raise ValueError('CanSatのプロジェクト共有ファイルを選んでください。実験ZIPや作業JSONとは異なります。')
     project = document.get('project')
-    if not isinstance(project, dict) or set(project) != {'id', 'name', 'owner', 'purpose'}:
+    if (not isinstance(project, dict) or not {'id','name','owner','purpose'}<=set(project)
+            or set(project)-{'id','name','owner','purpose','year','team'}):
         raise ValueError('共有するプロジェクト情報の形式が不正です。')
     project_id = project.get('id')
     if not isinstance(project_id, str) or not store.ID_RE.fullmatch(project_id):
         raise ValueError('プロジェクトIDが不正です。')
-    return {'id': project_id,
+    result={'id': project_id,
             'name': store._text(project.get('name'), 'プロジェクト名', 120, True),
             'owner': store._text(project.get('owner'), '担当者', 80),
             'purpose': store._text(project.get('purpose'), '目的', 500)}
+    if 'year' in project:result['year']=store.project_year(project['year'])
+    if 'team' in project:result['team']=store._text(project['team'],'班',80)
+    return result
+
+
+def document(project):
+    result={'format':FORMAT,'project':{'id':project.id,'name':project.name,'owner':project.owner,'purpose':project.purpose}}
+    if project.year is not None:result['project']['year']=project.year
+    if project.team:result['project']['team']=project.team
+    return result
 
 
 def read_share(path):
@@ -55,10 +66,9 @@ def read_share(path):
 
 def export_share(project_id, destination, root=None):
     project = store.read_project(project_id, root)
-    document = {'format': FORMAT, 'project': {
-        'id': project.id, 'name': project.name, 'owner': project.owner, 'purpose': project.purpose}}
-    validate(document)
-    raw = (json.dumps(document, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    doc = document(project)
+    validate(doc)
+    raw = (json.dumps(doc, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
     destination = store._safe_chain(Path(destination))
     # Exclusively create: never replace an existing ledger, attachment or file.
     fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -86,8 +96,8 @@ def register(document, root=None):
 
     def existing():
         project = store.read_project(project_id, base)
-        differs = (project.name, project.owner, project.purpose) != (
-            metadata['name'], metadata['owner'], metadata['purpose'])
+        differs = (project.name, project.owner, project.purpose, project.year, project.team) != (
+            metadata['name'], metadata['owner'], metadata['purpose'],metadata.get('year'),metadata.get('team',''))
         return Registration(project, False, differs)
 
     if target.exists():

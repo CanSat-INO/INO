@@ -33,7 +33,7 @@ def export_project(parent, project_id):
                 f'保存先: {destination}\nサイズ: {size:,}バイト\n\n'
                 'このファイルをメンバーへ渡してください。受け取った人はトップ画面の'
                 '「共有ファイルから追加」で登録できます。\n'
-                '含まれるのはプロジェクトID・名前・担当者・目的です。実験記録・添付は含まれません。')
+                '含まれるのはプロジェクトID・名前・担当者・目的・年度・班です。実験記録・添付は含まれません。')
     except (OSError, ValueError, UnicodeError) as exc:
         message(parent, '共有ファイルを保存できません', str(exc), warning=True)
 
@@ -47,11 +47,11 @@ def import_project(parent):
         document = sharing.read_share(Path(source))
         project = sharing.validate(document)
         text = (f'プロジェクト: {project["name"]}\n担当者・チーム: {project["owner"] or "未入力"}\n'
-                f'目的: {project["purpose"] or "未入力"}\nID: {project["id"]}\n\n'
+                f'年度・班: {project.get("year","未設定")} {project.get("team", "")}\n目的: {project["purpose"] or "未入力"}\nID: {project["id"]}\n\n'
                 'このPCに登録しますか？\n'
                 '同じIDのプロジェクトがある場合は、そのプロジェクトを選択します。'
                 '既存の記録・添付・プロジェクト情報は上書きしません。\n'
-                '実験データは別途、既存の実験ZIPまたは手動GitHub共有で受け取ります。'
+                '実験データは別途、ホームで共有先を設定して自動共有、または従来の実験ZIP・手動GitHub共有で受け取ります。'
                 'この操作だけではデータは同期されません。')
         if message(parent, '共有プロジェクトを確認', text, confirm=True) != QMessageBox.Yes:
             return None

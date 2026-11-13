@@ -3,13 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import sys
+from datetime import datetime
 
 from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QSize
 from PySide6.QtGui import QColor, QPainter, QPen, QRadialGradient, QBrush
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout,
     QFormLayout, QGroupBox, QLabel, QLineEdit, QPushButton, QListWidget,
-    QListWidgetItem, QMessageBox, QSizePolicy,
+    QListWidgetItem, QMessageBox, QSizePolicy, QSpinBox,
 )
 import project_store as store
 from project_theme import apply_space_theme
@@ -88,7 +89,13 @@ class ProjectHub(QMainWindow):
         self.purpose = QLineEdit(); self.purpose.setMaxLength(500)
         self.purpose.setPlaceholderText('目的・概要（任意）')
         form.addRow('プロジェクト名', self.name)
-        form.addRow('担当者・チーム', self.owner)
+        self.year=QSpinBox();self.year.setRange(2000,2200);self.year.setValue(datetime.now().year)
+        self.year.setObjectName('projectYear')
+        self.team=QLineEdit();self.team.setMaxLength(80);self.team.setPlaceholderText('例：INO / 次年度CanSat班')
+        self.team.setObjectName('projectTeam')
+        group_row=QHBoxLayout();group_row.addWidget(self.year);group_row.addWidget(self.team,1)
+        form.addRow('年度・班',group_row)
+        form.addRow('担当者', self.owner)
         form.addRow('目的・概要', self.purpose)
         self.create_button = QPushButton('作成して開く →')
         self.create_button.setObjectName('projectCreate')
@@ -133,6 +140,9 @@ class ProjectHub(QMainWindow):
         share_hint.setObjectName('projectHint')
         existing_layout.addWidget(share_hint)
         root.addWidget(existing)
+        from project_auto_gui import CatalogPanel
+        self.catalog = CatalogPanel(self)
+        root.addWidget(self.catalog)
         bottom = QHBoxLayout()
         legacy = QPushButton('既存の実験を開く（未分類）')
         legacy.clicked.connect(lambda: self.launch(None))
@@ -162,7 +172,7 @@ class ProjectHub(QMainWindow):
         self.empty_state.setText('保存済みのプロジェクトはまだありません。\n作成すると、ここから再開できます。')
         self.empty_state.setVisible(not projects)
         for project in projects:
-            item = QListWidgetItem(project.name + '\n' + (project.owner or '担当者未入力') + ' ｜ ID: ' + project.id[:8])
+            item = QListWidgetItem(project.name + '\n' + (f'{project.year or "年度未設定"} ｜ {project.team} ｜ ') + (project.owner or '担当者未入力') + ' ｜ ID: ' + project.id[:8])
             item.setData(Qt.UserRole, project.id)
             item.setToolTip((project.purpose or project.name) + '\nID: ' + project.id)
             item.setSizeHint(QSize(300, 66))
@@ -176,7 +186,7 @@ class ProjectHub(QMainWindow):
 
     def create_project(self):
         try:
-            project = store.create_project(self.name.text(), self.owner.text(), self.purpose.text())
+            project = store.create_project(self.name.text(), self.owner.text(), self.purpose.text(),year=self.year.value(),team=self.team.text())
         except (ValueError, OSError, UnicodeError) as exc:
             QMessageBox.warning(self, '作成できません', str(exc)); return
         self.name.clear(); self.owner.clear(); self.purpose.clear()
@@ -251,6 +261,8 @@ class ProjectHub(QMainWindow):
 
     def closeEvent(self, event):
         if self.worker is not None:
+            event.ignore(); return
+        if self.catalog.background.before_close():
             event.ignore(); return
         event.accept()
         QApplication.instance().quit()

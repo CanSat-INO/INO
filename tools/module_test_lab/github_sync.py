@@ -226,10 +226,15 @@ class GitHubSync:
         # Record-ID -> [(remote records root, remote attachments root), ...].
         # Preserve priority: the new INO path is checked before the legacy path.
         locations: dict[str, list[tuple[str, str]]] = {}
-        for record_root, attach_root in (
+        roots = [
             (REMOTE_RECORDS, REMOTE_ATTACHMENTS),
             (LEGACY_REMOTE_RECORDS, LEGACY_REMOTE_ATTACHMENTS),
-        ):
+        ]
+        import project_store
+        if project_store.active_id():
+            root = f'data/ino/projects/{project_store.active_id()}'
+            roots.insert(0, (root + '/records', root + '/attachments'))
+        for record_root, attach_root in roots:
             listing = self._api("GET", self._contents_url(record_root, ref=True), allow_404=True)
             if listing is None:
                 continue
@@ -281,6 +286,8 @@ class GitHubSync:
                 not isinstance(remote_records[0], dict) or remote_records[0].get("id") != rid):
                 raise SyncError(f"GitHubの実験記録 {rid[:12]} の形式が一致しません。")
             rec = remote_records[0]
+            if obj.get('storage') is not None:
+                raise SyncError('共有フォルダーのZIPを使う記録です。ホームの自動共有で取得し、ZIP一覧から確認・復元してください。')
             import project_store
             if not project_store.record_matches(rec):
                 skipped_project += 1

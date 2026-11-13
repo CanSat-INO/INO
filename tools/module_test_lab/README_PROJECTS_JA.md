@@ -6,7 +6,7 @@
 
 ## 基本操作
 
-1. トップでプロジェクト名・担当者/チーム・目的を入力して「作成して開く」。作成済みのプロジェクトは一覧から再開できます。
+1. トップでプロジェクト名・年度・班・担当者・目的を入力して「作成して開く」。作成済みのプロジェクトは一覧から再開できます。
 2. プロジェクト概要の「＋ 新しい実験」でv20を開き、実験名・担当者・使用機器・コード版を入力します。
 3. CSV確認、解析、実験記録票へ進みます。v16で「実験記録を保存」を押すと、選択中のプロジェクトに台帳と添付が保存されます。
 4. 作業途中はv20のJSONを保存します。新規プロジェクトでは `sessions/` が初期保存先です。
@@ -20,7 +20,7 @@
   records.json                 従来の未分類台帳（移動しません）
   attachments/                 従来の添付（移動しません）
   projects/<32桁のID>/
-    project.json               名前・担当・目的
+    project.json               名前・年度・班・担当・目的
     records.json               このプロジェクトの台帳
     attachments/               このプロジェクトの添付
     sessions/                  作業JSONの初期保存先
@@ -40,7 +40,7 @@
 - 新規記録に `project_id` を追加します。別プロジェクトの記録ZIP・削除退避ZIP・新形式の作業JSONを、そのまま別プロジェクトへ取り込むことは拒否します。
 - IDが付いていない従来の記録ZIPは、利用者が選んだプロジェクトに手動で取り込めます。ファイルを取り込む前に対象プロジェクトを確認してください。
 - 旧作業JSONは読み込めます。IDのない旧JSONは現在のプロジェクトで開く扱いです。新たに保存すると対象IDが付きます。
-- GitHub共有は従来どおり利用者の手動操作です。取得時は、選択中のプロジェクトとIDが一致する記録のみを取得します。未分類ではIDが付いていない記録のみ取得します。開発・更新処理から実験データをGitHubへ送信しません。
+- GitHub共有は従来の手動操作に加え、初期OFFの自動共有があります。取得時は、選択中のプロジェクトとIDが一致する記録のみを取得します。未分類ではIDが付いていない記録のみ取得します。開発・更新処理から実験データをGitHubへ送信しません。
 - 別PCへのプロジェクト登録は、次の「プロジェクト共有ファイル」を使用します。フォルダーを手作業でコピーする必要はありません。
 - 添付・台帳の削除退避は当該IDの領域を使います。既存の削除退避・バックアップは変更しません。
 - 解析結果の保存ダイアログでは `exports/` を初期表示します。利用者が別の保存先を手動で選ぶこともできます。
@@ -48,7 +48,7 @@
 ## プロジェクトをメンバーへ渡す
 
 1. ホストはトップ画面で作成済みプロジェクトを選び「選択したプロジェクトを共有…」を押します。作業画面のホームにある「プロジェクトを共有…」からも保存できます。
-2. 保存された `project-xxxxxxxx.cansat-project.json` をメンバーへ渡します。含まれるのはID・名前・担当者/チーム・目的だけで、最大16KBです。実験記録、添付、作業JSON、認証情報は含まれません。転送はサークルで普段使う方法を利用してください。
+2. 保存された `project-xxxxxxxx.cansat-project.json` をメンバーへ渡します。含まれるのはID・名前・担当者・目的・年度・班で、最大16KBです。実験記録、添付、作業JSON、認証情報は含まれません。転送はサークルで普段使う方法を利用してください。
 3. メンバーは更新済みGUIのトップで「共有ファイルから追加…」を押し、受け取ったファイルを選びます。名前・担当者・目的・IDを確認して登録します。
 4. 一覧で選択されたプロジェクトを開き、実験を始めます。各PCの保存先は `projects/<同じID>/` です。表示名が同じだけでは同じプロジェクトになりません。
 
@@ -60,9 +60,17 @@
 ファイルを受け取れる人なら登録できます。ホストがメンバーを選ぶ仕組みではありません。
 担当者名・目的に共有したくない情報を記入している場合は、配布前に確認してください。
 
-実験データは各PCに保存され、自動同期しません。同じIDでプロジェクトを開いた後、従来の実験ZIP取り込み、
+自動共有は初期OFFです。OFFの間は実験データを各PCに保存し、従来の実験ZIP取り込み、
 または既存の手動GitHub共有を利用できます。共有ファイルの再取り込みで実験データが消えることはありません。
 GitHubを使う場合は、各PCに当該リポジトリへの権限が必要です。
+
+## GitHubとZIPで共有する
+
+操作・保存先・容量・互換性は [GitHubと共有フォルダーの説明](README_GIT_ZIP_JA.md) を参照してください。
+プロジェクトごとにGitHubのリポジトリ・ブランチを指定します。共有フォルダーは未設定で始め、各PCで後から指定できます。
+自動共有は初期OFF、共有先設定の変更後もOFFです。名前付きプロジェクトはINO固定ではありません。
+小さい記録・添付をGitHub、大きな添付とモデル資料を共有フォルダーのZIPへ保存します。
+共有フォルダー自体を他PCへ転送するサービスは追加しません。同じZIPが見える場所を各PCで指定します。
 
 ## 確認方法
 
@@ -73,7 +81,11 @@ GitHubを使う場合は、各PCに当該リポジトリへの権限が必要で
 ```bash
 python3 -m unittest discover -s tests -p test_project_store.py -v
 python3 -m unittest discover -s tests -p test_project_share.py -v
+python3 -m unittest discover -s tests -p test_project_auto.py -v
+python3 -m unittest discover -s tests -p test_project_storage.py -v
 ~/cansat_gui_venv/bin/python -m unittest discover -s tests -p test_project_gui.py -v
+~/cansat_gui_venv/bin/python -m unittest discover -s tests -p test_project_auto_gui.py -v
+~/cansat_gui_venv/bin/python -m unittest discover -s tests -p test_project_storage_gui.py -v
 ~/cansat_gui_venv/bin/python -m unittest discover -s tests -p test_v20_workspace_gui.py -v
 python3 -m pytest -q tests/test_v20_workflow_core.py tests/test_v20_workspace_core.py tests/test_v15_sensor_core.py tests/test_v16_experiment_core.py tests/test_v19_compare_core.py tests/test_v21_quality_core.py
 ```

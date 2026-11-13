@@ -62,6 +62,14 @@ class Project:
     owner: str
     purpose: str
     directory: Path
+    year: int | None = None
+    team: str = ''
+
+
+def project_year(value):
+    if value is not None and (type(value) is not int or not 2000<=value<=2200):
+        raise ValueError('年度は2000～2200の整数で指定してください。')
+    return value
 
 
 def _text(value, label, limit, required=False):
@@ -86,7 +94,8 @@ def read_project(project_id: str, root: Path | None = None) -> Project:
         raise ValueError('プロジェクト情報の形式が不正です。')
     return Project(project_id, _text(obj.get('name'), 'プロジェクト名', 120, True),
                    _text(obj.get('owner', ''), '担当者', 80),
-                   _text(obj.get('purpose', ''), '目的', 500), directory)
+                   _text(obj.get('purpose', ''), '目的', 500), directory,
+                   project_year(obj.get('year')), _text(obj.get('team',''),'班',80))
 
 
 def list_projects(root: Path | None = None) -> tuple[list[Project], int]:
@@ -101,13 +110,14 @@ def list_projects(root: Path | None = None) -> tuple[list[Project], int]:
             projects.append(read_project(directory.name, root))
         except (ValueError, OSError, UnicodeError):
             invalid += 1
-    return sorted(projects, key=lambda p: (p.name.casefold(), p.id)), invalid
+    return sorted(projects, key=lambda p: (-(p.year or 0),p.team.casefold(),p.name.casefold(),p.id)), invalid
 
 
-def create_project(name: str, owner: str = '', purpose: str = '', root: Path | None = None) -> Project:
+def create_project(name: str, owner: str = '', purpose: str = '', root: Path | None = None, *,year=None,team='') -> Project:
     name = _text(name, 'プロジェクト名', 120, True)
     owner = _text(owner, '担当者', 80)
     purpose = _text(purpose, '目的', 500)
+    year=project_year(year);team=_text(team,'班',80)
     project_id = uuid.uuid4().hex
     directory = _safe_chain((Path(root) if root is not None else base_dir()) / 'projects' / project_id)
     directory.mkdir(parents=True, exist_ok=False)
@@ -117,6 +127,7 @@ def create_project(name: str, owner: str = '', purpose: str = '', root: Path | N
     atomic_json(directory / 'records.json', {'format': 'cansat-module-lab-records', 'version': 1, 'records': []})
     atomic_json(directory / 'project.json', {'format': PROJECT_FORMAT, 'id': project_id,
                 'name': name, 'owner': owner, 'purpose': purpose,
+                **({'year':year} if year is not None else {}), **({'team':team} if team else {}),
                 'created_at': datetime.now(timezone.utc).isoformat(timespec='seconds')})
     return read_project(project_id, root)
 
@@ -124,6 +135,15 @@ def create_project(name: str, owner: str = '', purpose: str = '', root: Path | N
 def data_dir() -> Path:
     project_id = active_id()
     return read_project(project_id).directory if project_id else base_dir()
+
+
+def update_group(project_id,year,team):
+    project=read_project(project_id)
+    path=_safe_chain(project.directory/'project.json')
+    obj=json.loads(path.read_text(encoding='utf-8'))
+    obj['year']=project_year(year);obj['team']=_text(team,'班',80)
+    atomic_json(path,obj)
+    return read_project(project_id)
 
 
 def project_title() -> str:

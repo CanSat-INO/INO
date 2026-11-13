@@ -38,6 +38,13 @@ class ProjectDashboard(QWidget):
             share.clicked.connect(self.share_project)
             share_row.addWidget(share)
             root.addLayout(share_row)
+            from project_auto_gui import AutoPanel
+            auto_panel=AutoPanel(host)
+            from project_storage_gui import PackagesPanel,configure
+            host.project_packages=PackagesPanel(host)
+            settings=QPushButton('共有設定（年度・班／GitHub／ZIPの場所）…')
+            settings.setObjectName('projectStorageSettings');settings.clicked.connect(lambda:configure(host))
+            root.addWidget(settings)
         groups = (
             ('センサー・解析', (('センサーCSV解析', 'センサー実験・ログ解析'),)),
             ('実験・記録', (('実験台帳', '実験記録・コード版管理（v16）'), ('結果ダッシュボード', '結果ダッシュボード'))),
@@ -67,6 +74,9 @@ class ProjectDashboard(QWidget):
         all_features = QPushButton('すべての機能・検索を開く')
         all_features.clicked.connect(host.navigation.show_all_features)
         root.addWidget(all_features)
+        if store.active_id():
+            root.addWidget(auto_panel)
+            root.addWidget(host.project_packages)
         root.addStretch(1)
         self.refresh()
 
