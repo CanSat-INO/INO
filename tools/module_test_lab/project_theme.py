@@ -38,6 +38,12 @@ QListWidget, QTableView, QTableWidget { background: #0B1829; alternate-backgroun
  selection-background-color: #315976; selection-color: #FFFFFF; }
 QListWidget::item { padding: 13px 10px; border-bottom: 1px solid #293E54; }
 QListWidget::item:selected { background: #24445E; color: #FFFFFF; }
+/* File dialogs use QListView/QTreeView, rather than QListWidget. Keep both
+   their viewports and text readable without recoloring analysis canvases. */
+QFileDialog QAbstractItemView { background: #0B1829; alternate-background-color: #11233A;
+ color: #E3EDF7; border: 1px solid #304B65;
+ selection-background-color: #315976; selection-color: #FFFFFF; }
+QFileDialog QAbstractItemView::item:selected { background: #315976; color: #FFFFFF; }
 QTableWidget::item { padding: 4px; }
 QHeaderView::section { background: #1B334D; color: #DDEDF8; padding: 7px; border: 1px solid #2B465F; font-weight: 600; }
 QScrollArea, QTabWidget::pane { border: none; background: transparent; }

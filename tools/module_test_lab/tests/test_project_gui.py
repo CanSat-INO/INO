@@ -70,6 +70,37 @@ class ProjectGuiTests(unittest.TestCase):
         QTest.mouseClick(button,Qt.LeftButton)
         self.app.processEvents()
 
+    def test_file_dialog_views_keep_readable_background_and_text(self):
+        from PySide6.QtGui import QPalette
+        from PySide6.QtWidgets import QAbstractItemView
+        # Real Qt file views created after theming: previous tests mocked the
+        # file picker and therefore missed its white viewport/light text.
+        def luminance(color):
+            values=[v/12.92 if v<=0.04045 else ((v+0.055)/1.055)**2.4
+                    for v in (color.redF(),color.greenF(),color.blueF())]
+            return sum(v*w for v,w in zip(values,(0.2126,0.7152,0.0722)))
+        for mode in (QFileDialog.AcceptSave,QFileDialog.AcceptOpen):
+            dialog=QFileDialog(self.window.v20_workflow_tab)
+            dialog.setOption(QFileDialog.DontUseNativeDialog,True)
+            dialog.setAcceptMode(mode);dialog.setDirectory(str(Path(self.temp.name)))
+            try:
+                dialog.resize(680,480);dialog.show();QTest.qWait(30)
+                for layout in (QFileDialog.Detail,QFileDialog.List):
+                    dialog.setViewMode(layout);QTest.qWait(20)
+                    views=[v for v in dialog.findChildren(QAbstractItemView) if v.isVisible()]
+                    self.assertTrue(views)
+                    for view in views:
+                        viewport=view.viewport();image=viewport.grab().toImage()
+                        # Sample unused space away from filenames and icons.
+                        background=image.pixelColor(max(0,image.width()-4),max(0,image.height()-4))
+                        self.assertLess(luminance(background),0.08,view.objectName())
+                        for group in (QPalette.Active,QPalette.Inactive):
+                            foreground=view.palette().color(group,QPalette.Text)
+                            ratio=(luminance(foreground)+0.05)/(luminance(background)+0.05)
+                            self.assertGreaterEqual(ratio,4.5,(mode,layout,view.objectName(),group))
+            finally:
+                dialog.reject();dialog.deleteLater();self.app.processEvents()
+
     def test_project_dashboard_and_four_routes(self):
         nav=self.window.navigation
         self.assertIs(nav.stack.currentWidget(),nav.project_home)
