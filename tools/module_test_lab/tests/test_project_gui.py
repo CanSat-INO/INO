@@ -85,6 +85,48 @@ class ProjectGuiTests(unittest.TestCase):
         self.assertIs(nav.tabs.currentWidget(),self.window.v20_workflow_tab)
         self.assertLessEqual(self.window.height(),900)
 
+    def test_installed_shell_scrolls_only_workspace_body_at_three_window_sizes(self):
+        nav=self.window.navigation;workflow=self.window.v20_workflow_tab
+        nav._open_workflow()
+        for width,height in ((1020,720),(1120,800),(1920,1080)):
+            self.window.resize(width,height);QTest.qWait(30)
+            self.assertLessEqual(self.window.width(),width,'window minimum width forced expansion')
+            self.assertLessEqual(self.window.height(),height,'window minimum height forced expansion')
+            self.assertEqual(nav.tabs_page.horizontalScrollBar().maximum(),0,(width,height,'outer horizontal'))
+            self.assertEqual(nav.tabs_page.verticalScrollBar().maximum(),0,(width,height,'outer vertical'))
+            self.assertEqual(workflow.scroll.horizontalScrollBar().maximum(),0,(width,height,'body horizontal'))
+            self.assertLessEqual(nav.tabs.width(),nav.tabs_page.viewport().width())
+            self.assertLessEqual(nav.tabs.height(),nav.tabs_page.viewport().height())
+            for bottom in (False,True):
+                workflow.scroll.verticalScrollBar().setValue(workflow.scroll.verticalScrollBar().maximum() if bottom else 0)
+                self.app.processEvents()
+                fixed=[workflow.progress,workflow.result_status,workflow.save_status,workflow.recommend_button]
+                fixed += [b for b in workflow.findChildren(QPushButton) if b.text() in
+                    ('CSV解析へ','実験記録票へ','ログ比較へ','下書きを保存…','下書きを開く…')]
+                self.assertEqual(len(fixed),9)
+                for widget in fixed:
+                    visible=widget.visibleRegion().boundingRect()
+                    name=widget.objectName() or widget.text()
+                    self.assertGreaterEqual(visible.width(),widget.width()-2,(width,height,name))
+                    self.assertGreaterEqual(visible.height(),widget.height()-2,(width,height,name))
+            output=os.environ.get('CANSAT_GUI_OUTPUT_DIR')
+            if output:
+                folder=Path(output);folder.mkdir(parents=True,exist_ok=True)
+                self.assertTrue(self.window.grab().save(str(folder/f'workspace-fit-{width}x{height}.png')))
+
+    def test_large_legacy_form_does_not_resize_or_offset_workspace_after_return(self):
+        nav=self.window.navigation;journal=self.window.v16_journal_tab
+        self.window.resize(1020,720)
+        nav.open_named_tab('実験記録・コード版管理（v16）');QTest.qWait(30)
+        journal.observed.setText('画面を切り替えても残す観測結果')
+        nav.tabs_page.verticalScrollBar().setValue(nav.tabs_page.verticalScrollBar().maximum())
+        nav._open_workflow();QTest.qWait(30)
+        self.assertEqual(nav.tabs_page.verticalScrollBar().maximum(),0)
+        self.assertEqual(nav.tabs_page.horizontalScrollBar().maximum(),0)
+        self.assertEqual(nav.tabs_page.verticalScrollBar().value(),0)
+        self.assertEqual(journal.observed.text(),'画面を切り替えても残す観測結果')
+        self.assertEqual(self.records.load_records(),[])
+
     def test_real_csv_handoff_save_and_quality_check(self):
         workflow=self.window.v20_workflow_tab
         for key,value in dict(name='Project-scoped experiment',tester='Tester',hardware='BNO055',code_version='test').items():

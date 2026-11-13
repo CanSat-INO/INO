@@ -6,7 +6,7 @@ Japanese input-method preedit from triggering a full menu rebuild every stroke.
 from __future__ import annotations
 import re
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal, QSize
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel,
@@ -157,6 +157,34 @@ class NavigationTile(QFrame):
         super().keyPressEvent(event)
 
 
+class CurrentPageTabs(QTabWidget):
+    """Hidden-tab navigation sizes its frame from the visible page only.
+
+    A stock QTabWidget takes the maximum hint of every page. With an outer
+    scroll area, a large hidden legacy form can then push a self-scrolling
+    workspace's header and actions offscreen.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.currentChanged.connect(lambda index: self.updateGeometry())
+
+    def _page_hint(self, minimum):
+        page = self.currentWidget()
+        if page is None or not self.tabBar().isHidden():
+            return super().minimumSizeHint() if minimum else super().sizeHint()
+        hint = page.minimumSizeHint() if minimum else page.sizeHint()
+        hint = hint.expandedTo(page.minimumSize())
+        margins = self.contentsMargins()
+        return QSize(hint.width() + margins.left() + margins.right() + 8,
+                     hint.height() + margins.top() + margins.bottom() + 8)
+
+    def minimumSizeHint(self):
+        return self._page_hint(True)
+
+    def sizeHint(self):
+        return self._page_hint(False)
+
+
 class ModuleNavigation(QWidget):
     """Keep the original QTabWidget/API, with a more legible home screen."""
 
@@ -304,7 +332,7 @@ class ModuleNavigation(QWidget):
         home_layout.addWidget(self.scroll, 1)
         self.stack.addWidget(self.home)
 
-        self.tabs = QTabWidget()
+        self.tabs = CurrentPageTabs()
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.stack.addWidget(self.tabs)

@@ -119,6 +119,8 @@ def install_project_shell(window):
     tabs_page = QScrollArea()
     tabs_page.setWidgetResizable(True)
     tabs_page.setWidget(nav.tabs)
+    # Refresh scroll ranges immediately when the current page's size hint changes.
+    nav.tabs.currentChanged.connect(lambda index: tabs_page.setWidgetResizable(True))
     nav.tabs_page = tabs_page
     nav.stack.addWidget(tabs_page)
     apply_space_theme(window)
