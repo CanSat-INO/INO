@@ -126,3 +126,7 @@ def install_project_shell(window):
     apply_space_theme(window)
     nav.show_home()
     window.statusBar().showMessage('保存先：' + str(records.DATA_DIR) + ' ｜ プロジェクト切替時は未保存入力を確認してください')
+
+    if store.active_id():
+        from project_status_gui import ProjectStatusStrip
+        window.project_status_strip = ProjectStatusStrip(window)

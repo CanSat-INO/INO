@@ -232,6 +232,7 @@ class GitHubSyncWorker(QThread):
 
 
 class TestLab(QMainWindow):
+    ledger_changed = Signal()
     def __init__(self):
         super().__init__()
         self.setWindowTitle("CanSat Module Test Lab  |  個別実験と結果集約")
@@ -524,6 +525,7 @@ class TestLab(QMainWindow):
         self.summary.setText(f"保存済み {len(self.records)} 件   |   成功 {success} 件   |   失敗 {failed} 件   |   未判定 {len(self.records)-success-failed} 件   |   データ保存先: {DATA_DIR}")
         if hasattr(self, "dashboard"):
             self.dashboard.reload(self.records)
+        self.ledger_changed.emit()
 
     def add_manual(self):
         dialog = ManualRecordDialog(self)
@@ -766,6 +768,9 @@ class TestLab(QMainWindow):
                 temp_path.unlink(missing_ok=True)
 
     def closeEvent(self, event):
+        connection_dialog=getattr(self,'project_connection_dialog',None)
+        if connection_dialog is not None and connection_dialog.before_host_close():
+            event.ignore();return
         packages=getattr(self,'project_packages',None)
         if packages is not None and packages.before_close():
             event.ignore();return

@@ -119,9 +119,20 @@ class ProjectAPI(GitHubSync):
             response=subprocess.run(command,input=json.dumps(data) if data is not None else None,
                 capture_output=True,text=True,encoding='utf-8',timeout=15,
                 env=dict(os.environ,GH_PROMPT_DISABLED='1',GIT_TERMINAL_PROMPT='0'))
+        except FileNotFoundError as exc:
+            error=SyncError('GitHub接続用のghが見つかりません。');error.reason='cli_missing'
+            raise error from exc
         except (OSError,subprocess.TimeoutExpired) as exc:
-            raise SyncError('GitHubへ接続できません。PC内の保存は継続できます。') from exc
+            error=SyncError('GitHubへ接続できません。PC内の保存は継続できます。');error.reason='network'
+            raise error from exc
         if method!='GET':self.last_write=time.monotonic()
+        if response.returncode and not response.stdout.lstrip().startswith('HTTP/'):
+            hint=(response.stderr or '').lower()
+            error=SyncError('GitHubへの接続を確認できません。')
+            if response.returncode==4 or 'gh auth login' in hint or 'not logged' in hint:error.reason='auth'
+            elif any(word in hint for word in ('resolve host','connection','timeout','tls handshake')):error.reason='network'
+            else:error.reason='response'
+            raise error
         return self.parse_response(response.stdout,response.returncode,allow_404)
 
     @staticmethod
@@ -129,7 +140,8 @@ class ProjectAPI(GitHubSync):
         header,separator,body=stdout.replace('\r\n','\n').partition('\n\n')
         match=re.match(r'HTTP/\S+ (\d{3})',header)
         if not match or not separator:
-            raise SyncError('GitHubの応答を確認できません。接続と認証を確認してください。')
+            error=SyncError('GitHubの応答を確認できません。接続と認証を確認してください。');error.reason='response'
+            raise error
         code=int(match[1]);headers={}
         for line in header.splitlines()[1:]:
             if ':' in line:
@@ -137,6 +149,14 @@ class ProjectAPI(GitHubSync):
         if code==404 and allow_404:return None
         if returncode or code>=400:
             error=SyncError('GitHubの権限・通信制限・更新競合を確認してください。未送信データはPC内に残ります。')
+            error.http_status=code
+            if code==401:error.reason='auth'
+            elif code==429 or (code==403 and (headers.get('x-ratelimit-remaining')=='0' or 'retry-after' in headers)):error.reason='rate'
+            elif code==403:error.reason='permission'
+            elif code==404:error.reason='repository'
+            elif code in (409,422):error.reason='conflict'
+            elif code>=500:error.reason='network'
+            else:error.reason='unknown'
             delay=60
             try:
                 delay=max(delay,int(headers.get('retry-after','0')))
@@ -149,7 +169,9 @@ class ProjectAPI(GitHubSync):
             error.retry_after=delay
             raise error
         try:return json.loads(body) if body.strip() else {}
-        except ValueError as exc:raise SyncError('GitHubからJSON以外の応答が届きました。') from exc
+        except ValueError as exc:
+            error=SyncError('GitHubからJSON以外の応答が届きました。');error.reason='response'
+            raise error from exc
 
     def listing(self,path):
         items=self._api('GET',self._contents_url(path,ref=True),allow_404=True)

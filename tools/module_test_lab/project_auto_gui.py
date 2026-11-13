@@ -11,6 +11,7 @@ from project_share_dialogs import message
 import records
 import project_settings as settings
 import project_transport as transport
+from project_share_status import guidance
 
 
 class Job(QThread):
@@ -43,7 +44,8 @@ class Background(QObject):
         self.failures+=1
         wait=max(getattr(error,'retry_after',0),min(900,60*2**min(self.failures-1,4)))
         self.next_allowed=time.monotonic()+wait
-        self.status.setText(f'同期保留：{error}\n{wait}秒以上待って再確認します。保存はPC内で継続できます。')
+        issue=guidance(error)
+        self.status.setText(f"同期保留：{issue['title']}\n{issue['action']}\n詳細：{str(error)[:400]}\n{wait}秒以上待って再確認します。保存はPC内で継続できます。")
     def finished(self):
         worker=self.worker;self.worker=None
         if worker:worker.deleteLater()
@@ -60,11 +62,13 @@ class Background(QObject):
 
 
 class ProjectController(Background):
+    state_changed=Signal()
     def __init__(self,host,status,checkbox,button):
         super().__init__(host,status)
         self.checkbox=checkbox;self.button=button;self.cache={};self.confirmed={}
         self.last_attempt=0;self.last_signature=None;self.soon=False
         self.project_id=store.active_id()
+        self.last_problem=None;self.blocked={};self.conflicts=set();self.has_synced=False;self.last_success=None
         error=None
         try:value=core.enabled(self.project_id)
         except (ValueError,OSError) as exc:value=False;error=str(exc)
@@ -96,16 +100,27 @@ class ProjectController(Background):
             self.checkbox.blockSignals(True);self.checkbox.setChecked(not value);self.checkbox.blockSignals(False)
             message(self.host,'設定を保存できません',str(exc),warning=True);return
         self.button.setEnabled(value)
+        self.last_problem=None
         if not value:
             if self.worker:self.worker.requestInterruption()
             self.status.setText('自動共有OFF：送信を停止します。既にGitHubに保存されたデータは残ります。')
         else:
             self.last_signature=None;self.last_attempt=0;self.tick()
+        self.state_changed.emit()
+    def reset_confirmation(self):
+        self.cache={};self.confirmed={};self.last_signature=None
+        self.last_problem=None;self.blocked={};self.conflicts=set();self.has_synced=False;self.last_success=None
+        self.state_changed.emit()
+    def finished(self):
+        super().finished()
+        self.state_changed.emit()
     def manual_allowed(self):
         return not self.checkbox.isChecked() and self.worker is None
     def failed(self,error):
         super().failed(error)
         if isinstance(error,core.Cancelled):return
+        self.last_problem=guidance(error)
+        self.state_changed.emit()
         try:
             pending=sum(self.confirmed.get(r['id'])!=core.digest(r) for r in records.load_records())
             self.status.setText(self.status.text()+f'\n未送信・要確認：{pending}件')
@@ -133,6 +148,7 @@ class ProjectController(Background):
         try:shared_root=settings.read(self.project_id)['shared_root']
         except (ValueError,OSError) as exc:self.failed(exc);return
         self.run_job(lambda api:api.cycle(doc,local,root,deleted,cache,shared_root),self.success)
+        self.state_changed.emit()
     def success(self,result):
         if not self.checkbox.isChecked() or self.closing:return
         try:
@@ -151,6 +167,8 @@ class ProjectController(Background):
             pending=sum(self.confirmed.get(r['id'])!=core.digest(r) for r in current)
             self.soon=pending>len(conflicts)+len(result['blocked'])
             self.failures=0;self.next_allowed=0
+            self.last_problem=None;self.blocked=dict(result['blocked']);self.conflicts=conflicts
+            self.has_synced=True;self.last_success=datetime.now().astimezone()
             text=(f'最終同期 {datetime.now().astimezone():%H:%M:%S} ｜ 未送信・要確認 {pending}件'
                   f' ｜ 受信 {received["added"]}件 ｜ 競合 {len(conflicts)}件')
             if result['blocked']:text+='\n未送信：'+next(iter(result['blocked'].values()))
@@ -160,6 +178,7 @@ class ProjectController(Background):
                 self.host.refresh_ledger();self.host.v16_journal_tab.reload()
                 self.host.project_dashboard.refresh()
                 self.host.project_packages.refresh()
+            self.state_changed.emit()
         except (ValueError,OSError,KeyError,TypeError) as exc:self.failed(exc)
 
 

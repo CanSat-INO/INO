@@ -2,7 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 from project_store import export_path, active_id
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QLabel,
     QLineEdit, QPushButton, QComboBox, QFileDialog, QMessageBox, QPlainTextEdit, QScrollArea,
@@ -19,6 +19,7 @@ CONTEXT_LABELS = {'name': '実験名', 'tester': '担当者', 'hardware': '使�
 
 
 class WorkflowV20Tab(QWidget):
+    state_changed = Signal()
     LINKS = (
         ('センサーを確認', ('センサー実験・ログ解析', '実験記録・コード版管理（v16）')),
         ('コードを検証', ('着地・Drive・CAM・Main ロジック検証', 'Main・CAM・Drive C++実コード検証')),
@@ -232,7 +233,7 @@ class WorkflowV20Tab(QWidget):
                        and journal.form_save_state.state(journal._form_data()) == 'changed')
             text = ('実験結果：前回の保存後、記録票に未保存の変更あり' if changed else
                     '実験結果：このPCの台帳に保存済み')
-            self.result_status.setText(text + f'（ID：{self.record_id[:8]}）｜共有状況はホームで確認')
+            self.result_status.setText(text + f'（ID：{self.record_id[:8]}）｜共有状況は画面下部で確認')
         else:
             self.result_status.setText('実験結果：未保存。記録票で「実験記録を保存」を押してください。')
         self.result_status.setToolTip(self.record_id or '')
@@ -247,6 +248,7 @@ class WorkflowV20Tab(QWidget):
         for name,info in (('測定CSV',self.measured_info),('参考CSV',self.reference_info)):
             if info: details.append(f'{name}: {info.path}\nSHA256: {info.sha256}\n{info.rows}行 / {info.signals}信号')
         self.csv_details.setText('\n\n'.join(details) or 'CSVを確認すると、パス・件数・SHA256を表示します。')
+        self.state_changed.emit()
 
     def _show_context(self, tab):
         if tab not in self.context_panels:

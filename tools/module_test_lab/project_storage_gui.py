@@ -2,16 +2,19 @@
 from datetime import datetime
 from pathlib import Path
 import copy
-from PySide6.QtCore import Qt,QObject,QThread,Signal
+import time
+from PySide6.QtCore import Qt,QObject,QThread,Signal,QTimer
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (QDialog,QDialogButtonBox,QFormLayout,QHBoxLayout,QVBoxLayout,QLineEdit,
-    QLabel,QSpinBox,QPushButton,QFileDialog,QMessageBox,QGroupBox,QListWidget,QListWidgetItem,QInputDialog)
+    QLabel,QWidget,QSpinBox,QPushButton,QFileDialog,QMessageBox,QGroupBox,QListWidget,QListWidgetItem,QInputDialog)
 import project_settings as settings
 import project_store as store
 import project_transport as transport
 import shared_packages as packages
 import records
+from project_share_status import check_destination,connection_text,guidance
+from project_auto_core import ProjectAPI
 from project_share_dialogs import message
 
 
@@ -20,44 +23,97 @@ def size(value):return f'{value/1024**2:.1f} MiB' if value>=1024**2 else f'{valu
 
 def configure(host):
     auto=host.project_auto
-    panel=host.project_packages
-    if not auto.manual_allowed() or panel.worker is not None or getattr(host,'_sync_worker',None) is not None:
+    if not auto.manual_allowed() or host.project_packages.worker is not None or getattr(host,'_sync_worker',None) is not None:
         message(host,'共有処理中','自動共有をOFFにし、通信・ZIP処理の終了後に設定してください。');return
-    pid=store.active_id()
-    try:project=store.read_project(pid);old=settings.read(pid)
+    try:dialog=ShareSettingsDialog(host)
     except (ValueError,OSError) as exc:message(host,'設定を開けません',str(exc),warning=True);return
-    dialog=QDialog(host);dialog.setWindowTitle('プロジェクトの共有設定');dialog.resize(650,330)
-    form=QFormLayout(dialog)
-    year=QSpinBox();year.setRange(1999,2200);year.setSpecialValueText('未設定');year.setValue(project.year or 1999)
-    team=QLineEdit(project.team);team.setMaxLength(80)
-    form.addRow('年度',year);form.addRow('班',team)
-    repo=QLineEdit(old['repository']);repo.setPlaceholderText('例：CanSat-INO/INO またはリポジトリURL')
-    repo.setObjectName('projectStorageRepository')
-    branch=QLineEdit(old['branch']);form.addRow('GitHub共有先',repo);form.addRow('ブランチ',branch)
-    root=QLineEdit(old['shared_root']);root.setPlaceholderText('未設定でも始められます')
-    root.setObjectName('projectStorageRoot')
-    row=QHBoxLayout();row.addWidget(root,1);choose=QPushButton('場所を選ぶ…');row.addWidget(choose)
-    def choose_root():
-        value=QFileDialog.getExistingDirectory(dialog,'このPCから開ける共有フォルダー',root.text())
-        if value:root.setText(value)
-    choose.clicked.connect(choose_root);form.addRow('重いZIPの保存先',row)
-    hint=QLabel('この場所はこのPCだけの設定です。別PCでも同じZIPが見える場所を各自指定してください。\n'
-        '通常のローカルフォルダーを選ぶだけでは、他PCへ共有・同期されません。\n'
-        'GitHubは非公開リポジトリを指定します。保存後、自動共有はOFFのままです。')
-    hint.setWordWrap(True);form.addRow(hint)
-    buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);form.addRow(buttons)
-    def save():
+    host.project_connection_dialog=dialog
+    try:dialog.exec()
+    finally:host.project_connection_dialog=None;dialog.deleteLater()
+
+
+class ShareSettingsDialog(QDialog):
+    def __init__(self,host):
+        super().__init__(host);self.host=host;self.worker=None;self.closing=False;self.close_host=False;self.probe_result=None
+        self.pid=store.active_id();project=store.read_project(self.pid);old=settings.read(self.pid)
+        self.setWindowTitle('プロジェクトの共有設定');self.resize(670,430)
+        form=QFormLayout(self)
+        self.repo=QLineEdit(old['repository']);self.repo.setPlaceholderText('班のGitHubリポジトリURLを貼り付けてください')
+        self.repo.setObjectName('projectStorageRepository');form.addRow('班のGitHubリンク',self.repo)
+        self.check_button=QPushButton('接続・権限を確認（送信しません）')
+        self.check_button.setObjectName('projectConnectionCheck');self.check_button.clicked.connect(self.check_connection);form.addRow(self.check_button)
+        self.result=QLabel('未確認でも保存できます。自動共有はOFFのままです。')
+        self.result.setObjectName('projectConnectionResult');self.result.setWordWrap(True);self.result.setTextFormat(Qt.PlainText);form.addRow(self.result)
+        details_button=QPushButton('詳細設定（ブランチ・年度・班）');details_button.setCheckable(True);form.addRow(details_button)
+        details=QWidget();detail_form=QFormLayout(details);detail_form.setContentsMargins(0,0,0,0)
+        self.branch=QLineEdit(old['branch']);self.branch.setObjectName('projectStorageBranch');detail_form.addRow('ブランチ',self.branch)
+        self.year=QSpinBox();self.year.setRange(1999,2200);self.year.setSpecialValueText('未設定');self.year.setValue(project.year or 1999)
+        self.team=QLineEdit(project.team);self.team.setMaxLength(80)
+        detail_form.addRow('年度',self.year);detail_form.addRow('班',self.team);form.addRow(details)
+        details.hide();details_button.toggled.connect(details.setVisible)
+        self.root=QLineEdit(old['shared_root']);self.root.setObjectName('projectStorageRoot');self.root.setPlaceholderText('未設定でも始められます')
+        row=QHBoxLayout();row.addWidget(self.root,1);choose=QPushButton('場所を選ぶ…');row.addWidget(choose)
+        def choose_root():
+            value=QFileDialog.getExistingDirectory(self,'このPCから開ける共有フォルダー',self.root.text())
+            if value:self.root.setText(value)
+        choose.clicked.connect(choose_root);form.addRow('ZIP保存先（任意）',row)
+        hint=QLabel('軽い記録はGitHub、重い添付はZIPで共有します。ZIPの場所は後で設定できます。\n'
+            '各PCで同じZIPが見える場所を指定してください。ローカルフォルダーを選ぶだけでは他PCへ同期されません。')
+        hint.setWordWrap(True);form.addRow(hint)
+        self.buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);form.addRow(self.buttons)
+        self.buttons.accepted.connect(self.save_settings);self.buttons.rejected.connect(self.reject)
+        self.editors=(self.repo,self.branch,self.year,self.team,self.root,choose,details_button,self.check_button)
+        self.repo.textChanged.connect(self.invalidate_probe);self.branch.textChanged.connect(self.invalidate_probe)
+    def invalidate_probe(self,*_):
+        self.probe_result=None
+        self.result.setText('入力した共有先は未確認です。「接続・権限を確認」で参照だけの確認ができます。')
+    def check_connection(self):
+        if self.worker is not None:return
+        self.probe_result=None
+        try:repo,branch=settings.destination(self.repo.text(),self.branch.text())
+        except ValueError as exc:self.result.setText(str(exc));return
+        remaining=getattr(self.host,'project_probe_next_allowed',0)-time.monotonic()
+        if remaining>0:
+            self.result.setText(f'GitHubの通信制限で待機中です。あと{int(remaining)+1}秒以上待って確認してください。');return
+        self.result.setText('共有先を確認しています。実験データは送信しません…')
+        for widget in self.editors:widget.setEnabled(False)
+        self.buttons.button(QDialogButtonBox.Save).setEnabled(False)
+        self.worker=FileJob(lambda cancel:check_destination(ProjectAPI(repository=repo,branch=branch,cancelled=cancel)),self)
+        self.worker.succeeded.connect(self.checked);self.worker.failed.connect(self.failed);self.worker.finished.connect(self.finished_check);self.worker.start()
+    def checked(self,result):
+        if self.closing:return
+        self.probe_result=result;self.result.setText(connection_text(result))
+    def failed(self,error):
+        if self.closing:return
+        issue=guidance(error)
+        if issue['kind']=='rate':self.host.project_probe_next_allowed=time.monotonic()+max(60,getattr(error,'retry_after',60))
+        self.result.setText(issue['title']+'\n'+issue['action'])
+    def finished_check(self):
+        worker=self.worker;self.worker=None
+        if worker:worker.deleteLater()
+        for widget in self.editors:widget.setEnabled(True)
+        self.buttons.button(QDialogButtonBox.Save).setEnabled(True)
+        if self.closing:
+            QDialog.reject(self)
+            if self.close_host:QTimer.singleShot(0,self.host.close)
+    def reject(self):
+        if self.worker is not None:
+            self.closing=True;self.worker.requestInterruption();self.result.setText('接続確認を停止してから閉じます…');return
+        super().reject()
+    def before_host_close(self):
+        if self.worker is None:return False
+        self.close_host=True;self.reject();return True
+    def save_settings(self):
+        if self.worker is not None or self.closing:return
         try:
-            # Validate metadata before saving either setting.
-            value=year.value() if year.value()!=1999 else None
-            store.project_year(value);store._text(team.text(),'班',80)
-            settings.save(pid,repo.text().strip(),branch.text().strip(),root.text().strip())
-            store.update_group(pid,value,team.text())
-            auto.cache={};auto.confirmed={};auto.last_signature=None
-            auto.status.setText('設定を保存しました。自動共有OFF：必要な場合に有効にしてください。')
-            panel.refresh();dialog.accept()
-        except (ValueError,OSError) as exc:message(dialog,'保存できません',str(exc),warning=True)
-    buttons.accepted.connect(save);buttons.rejected.connect(dialog.reject);dialog.exec()
+            year=self.year.value() if self.year.value()!=1999 else None
+            store.project_year(year);store._text(self.team.text(),'班',80)
+            settings.save(self.pid,self.repo.text().strip(),self.branch.text().strip(),self.root.text().strip())
+            store.update_group(self.pid,year,self.team.text())
+            self.host.project_auto.reset_confirmation()
+            self.host.project_auto.status.setText('設定を保存しました。自動共有OFF：必要な場合に有効にしてください。')
+            self.host.project_packages.refresh();self.accept()
+        except (ValueError,OSError) as exc:message(self,'保存できません',str(exc),warning=True)
 
 
 class FileJob(QThread):
