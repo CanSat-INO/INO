@@ -18,7 +18,7 @@ def guidance(error):
         'network':('GitHubに接続できません','ネットワーク・VPN・GitHubへの接続を確認してください。PC内への保存は続けられます。'),
         'repository':('リポジトリを参照できません','班から案内されたリンク、ログイン中のアカウント、非公開リポジトリの閲覧権限を確認してください。'),
         'branch':('指定したブランチを参照できません','詳細設定のブランチ名と、内容を閲覧する権限を班の担当者に確認してください。'),
-        'public':('この共有先は非公開ではありません','実験共有には非公開リポジトリを指定してください。この確認ではデータを送信していません。'),
+        'public':('この共有先は公開リポジトリです','公開データは誰でも閲覧できます。送信には別途、明示的な同意が必要です。この確認ではデータを送信していません。'),
         'conflict':('GitHubの更新が競合しています','待機後の再確認でも解消しなければ担当者へ連絡してください。同じ記録を上書きしません。'),
         'response':('GitHubの応答を確認できません','接続状態とGitHub CLIの設定を確認してください。'),
         'unknown':('共有の確認が必要です','ホームの共有状態・共有設定を確認してください。PC内への保存は続けられます。'),
@@ -32,7 +32,9 @@ def check_destination(api):
     repo=api._api('GET',f'repos/{api.repo}',allow_404=True)
     if repo is None:raise SetupIssue('repository')
     if not isinstance(repo,dict):raise SetupIssue('response')
-    if repo.get('private') is not True:raise SetupIssue('public')
+    # Public is valid as a destination. Unknown visibility is NOT valid.
+    # This function is read-only; upload authorization is checked elsewhere.
+    if type(repo.get('private')) is not bool:raise SetupIssue('response')
     branch=api._api('GET',f'repos/{api.repo}/branches/{quote(api.branch,safe="")}',allow_404=True)
     if branch is None:raise SetupIssue('branch')
     if not isinstance(branch,dict) or branch.get('name')!=api.branch:raise SetupIssue('response')
@@ -43,15 +45,34 @@ def check_destination(api):
         elif permissions.get('push') is False:can_write=False
     archived=repo.get('archived') is True or repo.get('disabled') is True
     if archived:can_write=False
-    return {'repository':api.repo,'branch':api.branch,'can_read':True,'can_write':can_write,'read_only_repository':archived}
+    return {'repository':api.repo,'branch':api.branch,'private':repo['private'],
+            'can_read':True,'can_write':can_write,'read_only_repository':archived}
 
 
 def connection_text(result):
+    """Show visibility prominently without suggesting that probing granted consent."""
+    visibility = result.get('private')
+    if visibility is False:
+        header = ('【Public：一般公開】ここへ送信したプロジェクト情報、実験記録、添付ファイルは'
+                  '誰でも閲覧できます。\n'
+                  'この接続確認・設定保存では送信しません。公開送信には別途、明示的な同意が必要です。\n')
+    elif visibility is True:
+        header = '【Private：非公開】接続確認・設定保存では送信しません。\n'
+    else:
+        header = '【公開状態は未確認】送信を始めないでください。\n'
     write=result['can_write']
-    if result.get('read_only_repository'):return '参照できますが、このリポジトリはアーカイブ等で書込みできない状態です。班の担当者に保存先を確認してください。'
-    if write is True:return '接続確認済み：参照できます。GitHubが書込み権限ありと報告しています。\n実験データの送信は行っていません。保護ルールによって実際の書込みが制限される場合があります。'
-    if write is False:return '接続確認済み：参照できます。実験を送信する書込み権限はありません。\n結果を送る場合は、班の担当者に書込み権限を確認してください。'
-    return '接続確認済み：参照できます。書込み権限はこの応答では確認できません。\n送信する場合は、班の担当者に書込み権限を確認してください。'
+    if result.get('read_only_repository'):
+        detail='参照できますが、このリポジトリはアーカイブ等で書込みできない状態です。班の担当者に保存先を確認してください。'
+    elif write is True:
+        detail=('接続確認済み：参照できます。GitHubが書込み権限ありと報告しています。\n'
+                '保護ルールによって実際の書込みが制限される場合があります。')
+    elif write is False:
+        detail=('接続確認済み：参照できます。実験を送信する書込み権限はありません。\n'
+                '結果を送る場合は、班の担当者に書込み権限を確認してください。')
+    else:
+        detail=('接続確認済み：参照できます。書込み権限はこの応答では確認できません。\n'
+                '送信する場合は、班の担当者に書込み権限を確認してください。')
+    return header+detail
 
 
 def summarize(signatures,confirmed,*,enabled,busy=False,checked=False,problem=None,blocked=(),conflicts=()):

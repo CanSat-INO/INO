@@ -23,7 +23,7 @@ class ShareStatusTests(unittest.TestCase):
     def test_connection_uses_two_gets_and_encodes_branch_without_sending(self):
         api=API();result=check_destination(api)
         self.assertEqual(api.calls,[('GET','repos/club/ino'),('GET','repos/club/ino/branches/data%2F2026')])
-        self.assertTrue(result['can_write']);self.assertIn('送信は行っていません',connection_text(result))
+        self.assertTrue(result['can_write']);self.assertIn('送信しません',connection_text(result))
     def test_read_only_permission_is_distinct_from_connection_failure(self):
         result=check_destination(API(repo={'private':True,'permissions':{'push':False,'pull':True}}))
         self.assertFalse(result['can_write']);self.assertIn('書込み権限はありません',connection_text(result))
@@ -33,10 +33,17 @@ class ShareStatusTests(unittest.TestCase):
     def test_archived_repository_is_not_claimed_to_be_writable(self):
         result=check_destination(API(repo={'private':True,'archived':True,'permissions':{'push':True}}))
         self.assertFalse(result['can_write']);self.assertIn('アーカイブ',connection_text(result))
-    def test_public_repository_is_blocked_before_requesting_branch(self):
+    def test_public_repository_probe_is_read_only(self):
         api=API(repo={'private':False})
-        with self.assertRaises(SetupIssue) as caught:check_destination(api)
-        self.assertEqual(caught.exception.reason,'public');self.assertEqual(len(api.calls),1)
+        result=check_destination(api)
+        self.assertIs(result['private'],False)
+        self.assertIsNone(result['can_write'])
+        self.assertEqual(api.calls,[
+            ('GET','repos/club/ino'),
+            ('GET','repos/club/ino/branches/data%2F2026')
+        ])
+        self.assertIn('【Public：一般公開】',connection_text(result))
+        self.assertIn('送信しません',connection_text(result))
     def test_repository_and_branch_missing_have_separate_actions(self):
         api=API();api.repository=None
         with self.assertRaises(SetupIssue) as caught:check_destination(api)

@@ -42,7 +42,7 @@ class ShareSettingsDialog(QDialog):
         self.repo.setObjectName('projectStorageRepository');form.addRow('班のGitHubリンク',self.repo)
         self.check_button=QPushButton('接続・権限を確認（送信しません）')
         self.check_button.setObjectName('projectConnectionCheck');self.check_button.clicked.connect(self.check_connection);form.addRow(self.check_button)
-        self.result=QLabel('未確認でも保存できます。自動共有はOFFのままです。')
+        self.result=QLabel('共有先は未確認ですが保存できます。Publicの場合も、保存だけでは実験データを送信しません。')
         self.result.setObjectName('projectConnectionResult');self.result.setWordWrap(True);self.result.setTextFormat(Qt.PlainText);form.addRow(self.result)
         details_button=QPushButton('詳細設定（ブランチ・年度・班）');details_button.setCheckable(True);form.addRow(details_button)
         details=QWidget();detail_form=QFormLayout(details);detail_form.setContentsMargins(0,0,0,0)
@@ -58,7 +58,8 @@ class ShareSettingsDialog(QDialog):
             if value:self.root.setText(value)
         choose.clicked.connect(choose_root);form.addRow('ZIP保存先（任意）',row)
         hint=QLabel('軽い記録はGitHub、重い添付はZIPで共有します。ZIPの場所は後で設定できます。\n'
-            '各PCで同じZIPが見える場所を指定してください。ローカルフォルダーを選ぶだけでは他PCへ同期されません。')
+            '各PCで同じZIPが見える場所を指定してください。ローカルフォルダーを選ぶだけでは他PCへ同期されません。\n'
+            'Publicへの自動送信には、共有先を保存した後で別途「公開送信の同意」が必要です。')
         hint.setWordWrap(True);form.addRow(hint)
         self.buttons=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);form.addRow(self.buttons)
         self.buttons.accepted.connect(self.save_settings);self.buttons.rejected.connect(self.reject)
@@ -111,7 +112,7 @@ class ShareSettingsDialog(QDialog):
             settings.save(self.pid,self.repo.text().strip(),self.branch.text().strip(),self.root.text().strip())
             store.update_group(self.pid,year,self.team.text())
             self.host.project_auto.reset_confirmation()
-            self.host.project_auto.status.setText('設定を保存しました。自動共有OFF：必要な場合に有効にしてください。')
+            self.host.project_auto.status.setText('共有先を保存しました。自動共有OFF。Publicへの送信には別途、公開送信の同意が必要です。')
             self.host.project_packages.refresh();self.accept()
         except (ValueError,OSError) as exc:message(self,'保存できません',str(exc),warning=True)
 

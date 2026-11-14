@@ -110,6 +110,24 @@ class GitHubSync:
         return (f"{data.get('full_name', self.repo)} / {self.branch}"
                 f"（デフォルト: {default}、公開状態: {visibility}）")
 
+    def repository_info(self, *, require_push=False) -> dict:
+        """Fetch authoritative visibility, branch and optional write permission.
+
+        Treat missing/ambiguous visibility or permission as unsafe (no writes).
+        The base class's legacy upload() still requires a private repository.
+        """
+        data = self._api('GET', f'repos/{self.repo}')
+        if not isinstance(data, dict) or type(data.get('private')) is not bool:
+            raise SyncError('GitHubの公開設定を確認できません。送信は行いません。')
+        self._api('GET', f'repos/{self.repo}/branches/{quote(self.branch, safe="")}')
+        if require_push:
+            permissions = data.get('permissions')
+            if not isinstance(permissions, dict) or permissions.get('push') is not True:
+                raise SyncError('GitHubへの書き込み権限を確認できません。送信は行いません。')
+        permissions = data.get('permissions')
+        return {'private': data['private'], 'repository': self.repo,
+                'branch': self.branch, 'can_push': isinstance(permissions, dict) and permissions.get('push') is True}
+
     def _require_private_repository(self) -> None:
         """Do not accidentally publish lab records to a public repository."""
         data = self._api("GET", f"repos/{self.repo}")
