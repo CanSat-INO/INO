@@ -85,6 +85,50 @@ class StorageGuiTests(unittest.TestCase):
         QTimer.singleShot(20,save_dialog);self.gui.configure(self.window)
         self.assertEqual(errors,[]);self.assertEqual(self.settings.read(self.project.id)['repository'],'club/next')
         self.assertEqual(self.records.RECORDS_FILE.read_bytes(),before)
+    def test_public_destination_can_be_saved_without_upload_or_consent(self):
+        """Saving a public URL is configuration only; never perform GitHub I/O."""
+        before=self.records.RECORDS_FILE.read_bytes();errors=[]
+        def save_dialog():
+            dialog=self.app.activeModalWidget()
+            try:
+                self.assertIsInstance(dialog,QDialog)
+                dialog.findChild(QLineEdit,'projectStorageRepository').setText('nanato333/WASA_Cansat_REGULUS')
+                dialog.findChild(QLineEdit,'projectStorageBranch').setText('master')
+                dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Save).click()
+                # Bound the modal loop even if Save is broken. The assertions below
+                # still detect that the settings were not persisted.
+                def close_if_still_open():
+                    try:
+                        if dialog.isVisible():
+                            dialog.reject()
+                    except RuntimeError:
+                        pass
+                QTimer.singleShot(800, close_if_still_open)
+            except Exception as exc:
+                errors.append(exc)
+                if dialog:dialog.reject()
+        with patch.object(self.gui,'check_destination',side_effect=AssertionError('unexpected read')), \
+             patch.object(self.gui,'ProjectAPI',side_effect=AssertionError('unexpected GitHub API')):
+            QTimer.singleShot(20,save_dialog)
+            self.gui.configure(self.window)
+        self.assertEqual(errors,[])
+        saved=self.settings.read(self.project.id)
+        self.assertEqual((saved['repository'],saved['branch']),('nanato333/WASA_Cansat_REGULUS','master'))
+        self.assertFalse(saved['enabled'])
+        self.assertIsNone(saved['public_consent'])
+        self.assertEqual(self.records.RECORDS_FILE.read_bytes(),before)
+
+    def test_public_probe_result_shows_warning_without_enabling_sync(self):
+        dialog=self.gui.ShareSettingsDialog(self.window)
+        try:
+            dialog.checked({'repository':'nanato333/WASA_Cansat_REGULUS',
+                            'branch':'master','private':False,'can_write':True,
+                            'can_read':True,'read_only_repository':False})
+            self.assertIn('Public',dialog.result.text())
+            self.assertIn('同意',dialog.result.text())
+            self.assertFalse(self.settings.read(self.project.id)['enabled'])
+        finally:dialog.reject()
+
     def test_close_waits_for_zip_worker_and_cancel_close_resumes_window(self):
         def task(cancel):
             while not cancel():QThread.msleep(5)

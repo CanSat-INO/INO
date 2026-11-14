@@ -122,7 +122,7 @@ class AutoGuiTests(unittest.TestCase):
                 hub.catalog.source={'repository':'club/data','branch':'main','enabled':False}
                 # Feed an authenticated network response without real network.
                 hub.catalog.checkbox.blockSignals(True);hub.catalog.checkbox.setChecked(True);hub.catalog.checkbox.blockSignals(False)
-                hub.catalog.joined_catalog({'projects':[doc],'cache':{}})
+                hub.catalog.joined_catalog({'projects':[doc],'cache':{},'private':True})
                 hub.catalog.items.setCurrentRow(0)
                 with patch.object(self.gui,'message',return_value=QMessageBox.Yes),patch.object(hub,'launch') as launch:
                     hub.catalog.join_project()
@@ -132,6 +132,57 @@ class AutoGuiTests(unittest.TestCase):
             finally:
                 hub.catalog.checkbox.blockSignals(True);hub.catalog.checkbox.setChecked(False);hub.catalog.checkbox.blockSignals(False)
                 hub.catalog.background.timer.stop();hub.hide();hub.deleteLater();self.app.processEvents()
+    def test_public_consent_button_requires_explicit_confirmation(self):
+        from PySide6.QtWidgets import QPushButton
+        import project_settings
+        button=self.window.findChild(QPushButton,'projectPublicConsent')
+        self.assertIsNotNone(button)
+        class PublicAPI:
+            def __init__(self,**kwargs):pass
+            def repository_info(self,require_push=False):
+                self_requested=require_push
+                if not self_requested:raise AssertionError('Write permission must be checked')
+                return {'repository':'club/data','branch':'main','private':False,'can_push':True}
+        with patch.object(self.gui.core,'ProjectAPI',PublicAPI),patch.object(self.gui,'message',return_value=QMessageBox.No):
+            button.click();self.wait_done(self.controller)
+        self.assertIsNone(project_settings.read(self.project.id)['public_consent'])
+        with patch.object(self.gui.core,'ProjectAPI',PublicAPI),patch.object(self.gui,'message',return_value=QMessageBox.Yes):
+            button.click();self.wait_done(self.controller)
+        value=project_settings.read(self.project.id)
+        self.assertTrue(project_settings.public_consent_valid(value['public_consent'],
+                        'club/data','main',self.project.id))
+        self.assertFalse(value['enabled'])  # Consent alone never enables sync.
+
+    def test_public_catalog_join_is_read_only_until_user_opt_in(self):
+        from project_hub import ProjectHub
+        foreign=self.store.create_project('Public project','REGULUS')
+        doc=self.core.document(foreign)
+        member_root=self.home/'member-public'/'cansat_module_lab_data'
+        with patch.object(self.store,'base_dir',return_value=member_root):
+            hub=ProjectHub(Path(__file__).resolve().parents[1]/'app.py')
+            try:
+                hub.show();self.app.processEvents()
+                hub.catalog.source={'repository':'nanato333/WASA_Cansat_REGULUS',
+                                    'branch':'master','enabled':False}
+                hub.catalog.checkbox.blockSignals(True)
+                hub.catalog.checkbox.setChecked(True)
+                hub.catalog.checkbox.blockSignals(False)
+                hub.catalog.joined_catalog({'projects':[doc],'cache':{},'private':False})
+                hub.catalog.items.setCurrentRow(0)
+                with patch.object(self.gui,'message',return_value=QMessageBox.Yes),patch.object(hub,'launch'):
+                    hub.catalog.join_project()
+                self.assertFalse(self.core.enabled(foreign.id))
+                import project_settings
+                value=project_settings.read(foreign.id)
+                self.assertEqual((value['repository'],value['branch']),
+                                 ('nanato333/WASA_Cansat_REGULUS','master'))
+                self.assertIsNone(value['public_consent'])
+            finally:
+                hub.catalog.checkbox.blockSignals(True)
+                hub.catalog.checkbox.setChecked(False)
+                hub.catalog.checkbox.blockSignals(False)
+                hub.catalog.background.timer.stop();hub.hide();hub.deleteLater();self.app.processEvents()
+
     def test_cancel_catalog_join_does_not_register_or_enable(self):
         from project_hub import ProjectHub
         doc=self.core.document(self.project)

@@ -21,7 +21,8 @@ import records
 
 
 class Server:
-    def __init__(self):self.files={};self.private=True;self.calls=[];self.fail_put=None
+    def __init__(self):
+        self.files={};self.private=True;self.can_push=True;self.calls=[];self.fail_put=None
 
 
 class FakeAPI(core.ProjectAPI):
@@ -29,7 +30,8 @@ class FakeAPI(core.ProjectAPI):
     def _api(self,method,endpoint,data=None,*,allow_404=False):
         if self.cancelled():raise core.Cancelled('cancelled')
         server=self.server;server.calls.append((method,endpoint))
-        if endpoint==f'repos/{self.repo}':return {'private':server.private}
+        if endpoint==f'repos/{self.repo}':return {'private':server.private,'permissions':{'push':server.can_push}}
+        if endpoint==f'repos/{self.repo}/branches/{self.branch}':return {'name':self.branch}
         prefix=f'repos/{self.repo}/contents/'
         assert endpoint.startswith(prefix),endpoint
         path=unquote(endpoint[len(prefix):].split('?',1)[0])
@@ -81,9 +83,13 @@ class ProjectAutoTests(unittest.TestCase):
         if attach:
             file=self.root/(rec['id']+'.csv');file.write_text('time_s,z\n0,9.8\n1,9.7\n');sources=[file]
         return records.add_record(rec,sources)
-    def cycle(self,cache=None):
+    def cycle(self,cache=None,consent=None):
         from record_trash import deleted_ids
-        return self.api.cycle(self.doc,records.load_records(),records.ATTACHMENTS_DIR,deleted_ids(),cache)
+        return self.api.cycle(self.doc,records.load_records(),records.ATTACHMENTS_DIR,deleted_ids(),cache,public_consent=consent)
+
+    def explicit_consent(self,repo='club/data',branch='main'):
+        return {'confirmed':True,'repository':repo,'branch':branch,
+                'project_id':self.project.id,'scope':core.project_settings.PUBLIC_SCOPE}
 
     def test_two_pcs_upload_catalog_join_and_receive_attachments(self):
         original=self.record()
@@ -147,13 +153,59 @@ class ProjectAutoTests(unittest.TestCase):
         with self.assertRaises(core.SyncError):self.cycle()
         self.assertEqual(self.server.files,{})
 
+    def test_public_with_explicit_scoped_consent_can_send_and_read(self):
+        rec=self.record();self.server.private=False
+        result=self.cycle(consent=self.explicit_consent())
+        self.assertEqual(result['sent'],1)
+        self.assertIn(f'{self.remote}/records/{rec["id"]}.json',self.server.files)
+        catalog=self.api.catalog()
+        self.assertFalse(catalog['private'])
+        self.use(self.joined)
+        job=self.cycle(consent=self.explicit_consent())
+        self.assertEqual(core.receive(job['received'])['added'],1)
+        self.assertEqual(records.load_records()[0]['id'],rec['id'])
+
+    def test_public_consent_cannot_transfer_to_other_branch_repo_or_project(self):
+        self.record();self.server.private=False
+        for wrong in (self.explicit_consent(repo='other/data'),
+                      self.explicit_consent(branch='master'),
+                      {**self.explicit_consent(),'project_id':'0'*32},
+                      {**self.explicit_consent(),'scope':'unknown'},
+                      None):
+            with self.subTest(wrong=wrong), self.assertRaises(core.SyncError):
+                self.cycle(consent=wrong)
+            self.assertEqual(self.server.files,{})
+
+    def test_public_conversion_cannot_reuse_private_sync_approval(self):
+        self.record();self.cycle()  # private succeeded
+        before=dict(self.server.files)
+        self.server.private=False
+        with self.assertRaises(core.SyncError):self.cycle()  # no public consent
+        self.assertEqual(self.server.files,before)
+
+    def test_missing_write_permission_and_unknown_visibility_fail_before_writes(self):
+        self.record()
+        self.server.can_push=False
+        with self.assertRaises(core.SyncError):self.cycle()
+        self.assertEqual(self.server.files,{})
+        self.server.can_push=True;self.server.private=None
+        with self.assertRaises(core.SyncError):self.cycle()
+        self.assertEqual(self.server.files,{})
+
+    def test_failed_public_upload_does_not_publish_manifest(self):
+        rec=self.record();self.server.private=False
+        manifest=f'{self.remote}/records/{rec["id"]}.json'
+        self.server.fail_put=manifest
+        with self.assertRaises(core.SyncError):self.cycle(consent=self.explicit_consent())
+        self.assertNotIn(manifest,self.server.files)
+
     def test_repeated_unchanged_sync_has_no_writes_or_backups(self):
         self.record();first=self.cycle();second=self.cycle(first['cache'])
         self.server.calls=[]
         third=self.cycle(second['cache'])
         self.assertEqual(third['sent'],0)
         self.assertTrue(all(method=='GET' for method,path in self.server.calls))
-        self.assertEqual(len(self.server.calls),3) # repo privacy, metadata, directory only
+        self.assertEqual(len(self.server.calls),4) # repository, branch, metadata, records directory
         self.assertFalse((records.DATA_DIR/'.autosync/ledger-before-import.json').exists())
 
     def test_locally_deleted_record_is_not_resurrected(self):
@@ -199,6 +251,13 @@ class ProjectAutoTests(unittest.TestCase):
             project_settings.save(self.project.id,'club/data','main')
             core.set_enabled(self.project.id,True);self.assertTrue(core.enabled(self.project.id))
             core.set_enabled(self.project.id,False);self.assertFalse(core.enabled(self.project.id))
+            project_settings.set_public_consent(self.project.id,'club/data','main')
+            self.assertIsNotNone(project_settings.read(self.project.id)['public_consent'])
+            core.set_enabled(self.project.id,False)
+            self.assertIsNone(project_settings.read(self.project.id)['public_consent'])
+            project_settings.set_public_consent(self.project.id,'club/data','main')
+            project_settings.save(self.project.id,'club/another','master')
+            self.assertIsNone(project_settings.read(self.project.id)['public_consent'])
             self.assertFalse(core.catalog_enabled())
             project_settings.catalog(False,repository='club/data')
             core.set_catalog_enabled(True);self.assertTrue(core.catalog_enabled())
