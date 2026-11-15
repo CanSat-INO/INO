@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import ast
+import fcntl
 import hashlib
 import importlib.util
 import io
@@ -22,6 +23,9 @@ FORMAT = 'cansat-gui-release-1'
 APP = 'tools/module_test_lab'
 MAX_BYTES = 24 * 1024 * 1024
 UPDATER_PROTOCOL = 2  # Stable bootstrap-compatible client version.
+# Only exact package pins are allowed; options, URLs and nested requirements are
+# intentionally excluded from the automatically provisioned runtime environment.
+RUNTIME_PIN = re.compile(r'^([A-Za-z][A-Za-z0-9_.-]{0,79})==([0-9][A-Za-z0-9.+_-]{0,79})$')
 COMMIT = re.compile(r'^[0-9a-f]{40}$')
 
 
@@ -119,6 +123,8 @@ def validate(root):
             compile(p.read_bytes(), name, 'exec')
     if total > MAX_BYTES:
         raise ValueError('配布ファイルが大きすぎます。')
+    # Reject malformed requirements before publishing/using a GUI release.
+    runtime_requirements(root)
     return obj
 
 
@@ -282,7 +288,138 @@ def update_client_from_release(root, release):
     return activate_client(root, digest)
 
 
-def select(root, update=True, remote=REMOTE):
+def runtime_requirements(release):
+    """Read a hash-verified release's simple, pinned runtime requirements.
+
+    Legacy releases without a requirements file continue using the configured
+    Python unchanged. Never allow pip options, URLs, -r files or environment
+    markers in remotely supplied requirements.
+    """
+    path = safe(release / APP / 'requirements-runtime.txt')
+    if not path.is_file():
+        return None
+    raw = path.read_bytes()
+    if not raw or len(raw) > 8192:
+        raise ValueError('Pythonの依存関係ファイルが不正です。')
+    try:
+        content = raw.decode('utf-8')
+    except UnicodeError as exc:
+        raise ValueError('Pythonの依存関係ファイルを読み取れません。') from exc
+    packages = {}
+    for text in content.splitlines():
+        text = text.strip()
+        if not text or text.startswith('#'):
+            continue
+        found = RUNTIME_PIN.fullmatch(text)
+        if found is None or len(packages) >= 40:
+            raise ValueError('Pythonライブラリは名前==バージョンの形式で指定してください。')
+        name, version = found.groups()
+        canonical = re.sub(r'[-_.]+', '-', name).lower()
+        if canonical in packages:
+            raise ValueError('Pythonライブラリが重複しています。')
+        packages[canonical] = (name, version)
+    if 'pyside6' not in packages:
+        raise ValueError('GUI実行環境にはPySide6の固定バージョンが必要です。')
+    return raw, packages
+
+
+def _python_environment(root, release, base_python):
+    """Generate an immutable cache key for requirements plus the Python ABI."""
+    requirements = runtime_requirements(release)
+    if requirements is None:
+        return None
+    raw, packages = requirements
+    base = Path(base_python).expanduser().absolute()
+    if not base.is_file():
+        raise ValueError('設定済みのPythonが見つかりません。')
+    # A user's old venv only supplies Python; packages are installed separately.
+    version = _environment_command([str(base), '-c',
+        'import sys,platform; print("%s.%s:%s:%s" % '
+        '(sys.version_info.major,sys.version_info.minor,sys.implementation.cache_tag,platform.machine()))'],
+        timeout=20).stdout.strip()
+    digest = hashlib.sha256(b'cansat-python-v1\0' + version + b'\0' + raw).hexdigest()
+    return digest, packages, base
+
+
+def _environment_command(command, timeout=90):
+    # Do not inherit Python/pip overrides from a developer's shell.
+    env = os.environ.copy()
+    for name in tuple(env):
+        if name in ('PYTHONPATH', 'PYTHONHOME', 'PYTHONSTARTUP') or name.startswith('PIP_'):
+            env.pop(name, None)
+    env['PYTHONDONTWRITEBYTECODE'] = '1'
+    return subprocess.run(command, env=env, check=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, timeout=timeout)
+
+
+def _verify_runtime_python(python, packages):
+    """Check required versions, dependency integrity and Qt imports."""
+    if not python.is_file():
+        raise ValueError('Python実行ファイルがありません。')
+    # Pass package data through JSON, never interpolate it into Python source.
+    check = ('import importlib.metadata as md,json\n'
+             'expected=json.loads(__import__("sys").argv[1])\n'
+             'for name, version in expected.items():\n'
+             '    if md.version(name) != version:\n'
+             '        raise SystemExit("Python package version mismatch: "+name)\n'
+             'from PySide6.QtWidgets import QApplication\n'
+             'from PySide6.QtTest import QTest\n')
+    wanted = {name: ver for name, ver in packages.values()}
+    _environment_command([str(python), '-c', check, json.dumps(wanted)], timeout=40)
+    _environment_command([str(python), '-m', 'pip', 'check'], timeout=40)
+
+
+def prepare_runtime_python(root, release, base_python):
+    """Provision/reuse a separate Python environment; never mutate base_python.
+
+    Must be called on a validated release. A failed new environment is never
+    marked ready, and callers keep their last working GUI/environment.
+    """
+    config = _python_environment(root, release, base_python)
+    if config is None:
+        return str(base_python)  # Prior releases remain fully compatible.
+    digest, packages, base = config
+    root = safe(root)
+    store = safe(root / 'environments')
+    store.mkdir(parents=True, exist_ok=True)
+    target = safe(store / digest)
+    executable = target / 'bin/python'
+    ready = safe(target / 'ready.json')
+    lock = safe(root / 'environment.lock')
+    with open(lock, 'a') as lock_stream:
+        fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX)
+        if ready.is_file():
+            saved = json.loads(ready.read_text(encoding='utf-8'))
+            if saved != {'schema': 1, 'id': digest}:
+                raise ValueError('保存済みPython環境の情報が一致しません。')
+            _verify_runtime_python(executable, packages)
+            return str(executable)
+        # An interrupted installation is kept for diagnosis instead of being
+        # deleted automatically. Avoid removing arbitrary user-managed files.
+        if target.exists():
+            raise ValueError('作成途中のPython環境が残っています。手動で確認してください: ' + str(target))
+        target.mkdir()
+        try:
+            print('CanSat Simulation: 新しいPython環境を準備しています。', file=sys.stderr)
+            _environment_command([str(base), '-m', 'venv', str(target)], timeout=120)
+            _environment_command([str(executable), '-m', 'pip', 'install', '--isolated',
+                                  '--disable-pip-version-check', '--no-input',
+                                  '--only-binary=:all:', '-r',
+                                  str(release / APP / 'requirements-runtime.txt')],
+                                 timeout=900)
+            _verify_runtime_python(executable, packages)
+            atomic(ready, (json.dumps({'schema': 1, 'id': digest}) + '\n').encode())
+        except (OSError, ValueError, subprocess.SubprocessError):
+            # Only the directory created by this invocation is removed.  It is
+            # inside our managed cache and we hold the environment lock.
+            shutil.rmtree(target)
+            print('CanSat Simulation: Python環境の準備に失敗しました。既存版を維持します。',
+                  file=sys.stderr)
+            raise
+    return str(executable)
+
+
+def select(root, update=True, remote=REMOTE, base_python=None):
     root = safe(root)
     root.mkdir(parents=True, exist_ok=True)
     info = state(root)
@@ -295,6 +432,10 @@ def select(root, update=True, remote=REMOTE):
                     # This client is started through the fixed bootstrap.  Stage
                     # the next validated client for the next launch, never swap
                     # code under the process currently running.
+                    # Do not advance the active GUI if its Python requirements
+                    # cannot be provisioned and verified.
+                    if base_python is not None:
+                        prepare_runtime_python(root, release_path(root, revision), base_python)
                     update_client_from_release(root, release_path(root, revision))
                     if revision != info.get('current'):
                         info = {'current': revision, 'previous': info.get('current')}
@@ -309,8 +450,10 @@ def select(root, update=True, remote=REMOTE):
             try:
                 candidate = release_path(root, revision)
                 validate(candidate)
+                if base_python is not None:
+                    prepare_runtime_python(root, candidate, base_python)
                 return revision, candidate
-            except (OSError, ValueError, SyntaxError):
+            except (OSError, ValueError, SyntaxError, subprocess.SubprocessError):
                 continue
     raise ValueError('使用できるGUIがありません。GitHubへの接続を確認して再実行してください。')
 
@@ -343,15 +486,18 @@ def main():
         return 0
     update = '--offline' not in args and not (root / 'paused').exists()
     args = [a for a in args if a != '--offline']
-    revision, release = select(root, update)
+    # Status remains read-only with respect to Python environments.
     if args == ['--update-status']:
+        revision, release = select(root, False)
         print('GUI: ' + revision + '\n保存先: ' + str(release))
         print('起動時更新: ' + ('停止中' if (root / 'paused').exists() else '有効'))
         return 0
     config = json.loads((root / 'client.json').read_text(encoding='utf-8'))
-    python = config['python']
-    if not Path(python).is_file():
+    base_python = config['python']
+    if not Path(base_python).is_file():
         raise ValueError('設定したGUI用Pythonが見つかりません。')
+    revision, release = select(root, update, base_python=base_python)
+    python = prepare_runtime_python(root, release, base_python)
     env = dict(os.environ, CANSAT_GUI_PYTHON=python, PYTHONDONTWRITEBYTECODE='1',
                CANSAT_LAB_RELEASE=revision[:8])
     env.pop('CANSAT_LAB_PREVIEW', None)

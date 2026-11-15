@@ -38,6 +38,11 @@ def snapshot(source, target):
 
 def check_gui(root, python):
     source = root / client.APP
+    # The maintainer must be able to run the exact pinned runtime before it
+    # can become the team's automatic update. Missing/changed packages fail.
+    pinned = client.runtime_requirements(root)
+    if pinned is not None:
+        client._verify_runtime_python(Path(python), pinned[1])
     # Tests use only a disposable home. They cannot open the existing ledger.
     with tempfile.TemporaryDirectory(prefix='cansat-release-check-') as temp:
         env = dict(os.environ, HOME=temp, USERPROFILE=temp, XDG_CONFIG_HOME=temp+'/config',
