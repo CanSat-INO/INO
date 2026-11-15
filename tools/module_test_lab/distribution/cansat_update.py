@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import contextlib
+import ast
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -19,6 +21,7 @@ BRANCH = 'cansat-lab-stable'
 FORMAT = 'cansat-gui-release-1'
 APP = 'tools/module_test_lab'
 MAX_BYTES = 24 * 1024 * 1024
+UPDATER_PROTOCOL = 2  # Stable bootstrap-compatible client version.
 COMMIT = re.compile(r'^[0-9a-f]{40}$')
 
 
@@ -206,6 +209,79 @@ def fetch(root, remote=REMOTE):
     return revision
 
 
+
+def client_source_protocol(raw):
+    """Require the v2 bootstrap contract without importing untrusted code."""
+    try:
+        node = ast.parse(raw.decode('utf-8'))
+    except (UnicodeError, SyntaxError):
+        return None
+    for assignment in node.body:
+        if (isinstance(assignment, ast.Assign) and
+                any(isinstance(t, ast.Name) and t.id == 'UPDATER_PROTOCOL'
+                    for t in assignment.targets) and
+                isinstance(assignment.value, ast.Constant)):
+            return assignment.value.value
+    return None
+
+
+def installed_bootstrap(root):
+    """Load the fixed, locally installed bootstrap, not code from the release."""
+    path = safe(Path(root) / 'cansat_bootstrap.py')
+    spec = importlib.util.spec_from_file_location('cansat_installed_bootstrap', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def stage_client(root, raw):
+    """Create a verified immutable updater version; never replace a running script."""
+    if len(raw) > 512 * 1024 or client_source_protocol(raw) != 2:
+        raise ValueError('更新クライアントの互換性を確認できません。')
+    compile(raw, 'cansat_update.py', 'exec')
+    bootstrap = installed_bootstrap(root)
+    digest = hashlib.sha256(raw).hexdigest()
+    script = bootstrap.version_path(root, digest)
+    if script.exists():
+        if bootstrap.valid_client(root, digest) is None:
+            raise ValueError('保存済み更新クライアントの内容が不正です。')
+    else:
+        parent = safe(root / 'clients')
+        parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='.incoming-', dir=parent) as tmp:
+            directory = Path(tmp) / 'client'
+            directory.mkdir()
+            atomic(directory / 'cansat_update.py', raw)
+            os.replace(directory, script.parent)
+    return digest
+
+
+def activate_client(root, digest):
+    bootstrap = installed_bootstrap(root)
+    info = bootstrap.read_state(root)
+    if bootstrap.valid_client(root, digest) is None:
+        raise ValueError('更新クライアントを検証できません。')
+    if info.get('current') != digest:
+        bootstrap.save_state(root, {'schema': 1, 'current': digest,
+                                    'previous': info.get('current')})
+        return True
+    return False
+
+
+def update_client_from_release(root, release):
+    """Trusted GUI-release bytes are already hash-verified by validate()."""
+    candidate = safe(release / APP / 'distribution' / 'cansat_update.py')
+    if not candidate.is_file():
+        return False
+    validate(release)
+    raw = candidate.read_bytes()
+    # Never downgrade when visiting a legacy release.
+    if client_source_protocol(raw) != 2:
+        return False
+    digest = stage_client(root, raw)
+    return activate_client(root, digest)
+
+
 def select(root, update=True, remote=REMOTE):
     root = safe(root)
     root.mkdir(parents=True, exist_ok=True)
@@ -216,6 +292,10 @@ def select(root, update=True, remote=REMOTE):
                 if locked:
                     info = state(root)
                     revision = fetch(root, remote)
+                    # This client is started through the fixed bootstrap.  Stage
+                    # the next validated client for the next launch, never swap
+                    # code under the process currently running.
+                    update_client_from_release(root, release_path(root, revision))
                     if revision != info.get('current'):
                         info = {'current': revision, 'previous': info.get('current')}
                         save_state(root, info)

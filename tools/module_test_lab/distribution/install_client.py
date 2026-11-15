@@ -12,8 +12,10 @@ import cansat_update as client
 
 
 def launcher_bytes(root):
-    return ('#!/usr/bin/env bash\nset -euo pipefail\nexec python3 ' +
-            shlex.quote(str(root / 'cansat_update.py')) + ' "$@"\n').encode()
+    # The literal HOME expansion works for different Ubuntu user names.
+    # Keep this fixed launcher tiny: client logic is updated separately.
+    return (b'#!/usr/bin/env bash\nset -euo pipefail\n'
+            b'exec python3 "$HOME/.local/share/cansat-lab/cansat_bootstrap.py" "$@"\n')
 
 
 def install(home, python, apply=False):
@@ -56,11 +58,18 @@ def install(home, python, apply=False):
             (backup / 'launcher-link.json').write_text(json.dumps({'target':os.readlink(launcher)}))
         elif launcher.exists():
             shutil.copy2(launcher, backup / 'cansat-lab')
-        for name in ('cansat_update.py', 'client.json', 'state.json'):
+        for name in ('cansat_update.py', 'cansat_bootstrap.py', 'client_state.json', 'client.json', 'state.json'):
             existing = client.safe(root / name)
             if existing.exists():
                 shutil.copy2(existing, backup / name)
-        client.atomic(root / 'cansat_update.py', Path(client.__file__).read_bytes())
+        updater = Path(client.__file__).read_bytes()
+        bootstrap = Path(__file__).parent / 'cansat_bootstrap.py'
+        # Install the fixed bootstrap before staging a client version.
+        client.atomic(root / 'cansat_bootstrap.py', bootstrap.read_bytes())
+        digest = client.stage_client(root, updater)
+        client.activate_client(root, digest)
+        # Keep a legacy fallback when the versioned client is missing/corrupt.
+        client.atomic(root / 'cansat_update.py', updater)
         client.atomic(root / 'client.json', (json.dumps({'python':str(interpreter)}, indent=2)+'\n').encode())
         client.save_state(root, {'current':revision, 'previous':old.get('current')
                                 if old.get('current') != revision else old.get('previous')})
