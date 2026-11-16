@@ -82,6 +82,10 @@ class PlatformIOProjectTab(QWidget):
         self.imu_button.clicked.connect(self.open_imu_log_dialog)
         layout.addWidget(self.imu_button)
 
+        self.baro_button = QPushButton('REGULUS HP203B 気圧ログ解析…')
+        self.baro_button.clicked.connect(self.open_baro_log_dialog)
+        layout.addWidget(self.baro_button)
+
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output)
@@ -107,6 +111,11 @@ class PlatformIOProjectTab(QWidget):
     def project_changed(self, _text):
         self.trusted.setChecked(False)
         self.update_test_button()
+
+    def open_baro_log_dialog(self):
+        from regulus_baro_log_dialog import RegulusBaroLogDialog
+        dialog = RegulusBaroLogDialog(self)
+        dialog.exec()
 
     def open_imu_log_dialog(self):
         from regulus_imu_log_dialog import RegulusIMULogDialog
