@@ -78,6 +78,10 @@ class PlatformIOProjectTab(QWidget):
         self.status = QLabel("未実行")
         layout.addWidget(self.status)
 
+        self.imu_button = QPushButton('REGULUS IMUログ解析…')
+        self.imu_button.clicked.connect(self.open_imu_log_dialog)
+        layout.addWidget(self.imu_button)
+
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output)
@@ -103,6 +107,11 @@ class PlatformIOProjectTab(QWidget):
     def project_changed(self, _text):
         self.trusted.setChecked(False)
         self.update_test_button()
+
+    def open_imu_log_dialog(self):
+        from regulus_imu_log_dialog import RegulusIMULogDialog
+        dialog = RegulusIMULogDialog(self)
+        dialog.exec()
 
     def choose_project(self):
         directory = QFileDialog.getExistingDirectory(
