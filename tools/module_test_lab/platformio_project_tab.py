@@ -90,6 +90,10 @@ class PlatformIOProjectTab(QWidget):
         self.gnss_button.clicked.connect(self.open_gnss_log_dialog)
         layout.addWidget(self.gnss_button)
 
+        self.mission_host_button = QPushButton('REGULUS ミッション仮想試験…')
+        self.mission_host_button.clicked.connect(self.open_mission_host_dialog)
+        layout.addWidget(self.mission_host_button)
+
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output)
@@ -115,6 +119,11 @@ class PlatformIOProjectTab(QWidget):
     def project_changed(self, _text):
         self.trusted.setChecked(False)
         self.update_test_button()
+
+    def open_mission_host_dialog(self):
+        from regulus_mission_host_dialog import RegulusMissionHostDialog
+        dialog = RegulusMissionHostDialog(self)
+        dialog.exec()
 
     def open_gnss_log_dialog(self):
         from regulus_gnss_log_dialog import RegulusGNSSLogDialog
