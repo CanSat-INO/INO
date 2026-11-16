@@ -86,6 +86,10 @@ class PlatformIOProjectTab(QWidget):
         self.baro_button.clicked.connect(self.open_baro_log_dialog)
         layout.addWidget(self.baro_button)
 
+        self.gnss_button = QPushButton('REGULUS GNSSログ解析…')
+        self.gnss_button.clicked.connect(self.open_gnss_log_dialog)
+        layout.addWidget(self.gnss_button)
+
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output)
@@ -111,6 +115,11 @@ class PlatformIOProjectTab(QWidget):
     def project_changed(self, _text):
         self.trusted.setChecked(False)
         self.update_test_button()
+
+    def open_gnss_log_dialog(self):
+        from regulus_gnss_log_dialog import RegulusGNSSLogDialog
+        dialog = RegulusGNSSLogDialog(self)
+        dialog.exec()
 
     def open_baro_log_dialog(self):
         from regulus_baro_log_dialog import RegulusBaroLogDialog
