@@ -2,7 +2,7 @@
 from __future__ import annotations
 import re
 from string import Template
-from ui_design_tokens import DARK_UI_COLORS
+from ui_design_tokens import DARK_UI_COLORS, DARK_UI_METRICS
 
 SPACE_STYLE = Template('''
 QMainWindow, QDialog, QWidget#projectHub { background: ${background}; }
@@ -15,10 +15,10 @@ QLabel#projectHeading { color: #EDF6FD; font-size: 27px; font-weight: 700; }
 QLabel#projectEyebrow { color: ${accent}; font-size: 11px; }
 QLabel#projectEmpty { background: ${surface}; color: #A9BED2; border: 1px solid #304B65; padding: 12px; border-radius: 3px; }
 QGroupBox { background: ${panel}; color: #DCEBF7; border: 1px solid #35506A;
- border-top: 2px solid #587D99; border-radius: 4px; margin-top: 14px; padding: 14px 10px 10px; font-weight: 600; }
+ border-top: 2px solid #587D99; border-radius: ${group_radius}; margin-top: 14px; padding: 14px 10px 10px; font-weight: 600; }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 5px; color: #DCEBF7; }
 QPushButton { background: ${button}; color: #E3EFF9; border: 1px solid #405C77;
- border-radius: 4px; padding: 8px 12px; min-height: 20px; font-weight: 500; }
+ border-radius: ${button_radius}; padding: 8px 12px; min-height: ${button_min_height}; font-weight: 500; }
 QPushButton:hover { background: #23425B; border-color: #80CDE0; }
 QPushButton:pressed { background: #294F68; }
 QPushButton:focus { border: 2px solid ${accent}; }
@@ -30,7 +30,7 @@ QPushButton:disabled, QPushButton[v13Role="primary"]:disabled, QPushButton[v13Ro
 QPushButton#projectCreate:disabled, QPushButton#projectOpen:disabled {
  background: #142234; color: #8296AA; border-color: #30455B; }
 QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
- background: ${input}; color: #E6F0F9; border: 1px solid #45627D; border-radius: 3px;
+ background: ${input}; color: #E6F0F9; border: 1px solid #45627D; border-radius: ${input_radius};
  padding: 6px 8px; selection-background-color: #315E79; selection-color: #FFFFFF; }
 QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus { border: 2px solid ${accent}; }
 QComboBox QAbstractItemView { background: #102339; color: #E3EFF9; selection-background-color: #315E79; }
@@ -60,7 +60,7 @@ QMenu::item:selected { background: #294A65; }
 QStatusBar { background: #081522; color: #AECCDD; }
 QLabel#v13ExperimentStatus { background: #102D43; color: #D4EAF9; border: 1px solid #3D6885; padding: 8px; border-radius: 3px; }
 QToolTip { background: #203B54; color: #FFFFFF; border: 1px solid #80B4CA; padding: 5px; }
-''').substitute(DARK_UI_COLORS)
+''').substitute({**DARK_UI_COLORS, **DARK_UI_METRICS})
 
 
 def apply_space_theme(window):
