@@ -1,46 +1,48 @@
 """Dark UI chrome with readable light plotting canvases in existing analyzers."""
 from __future__ import annotations
 import re
+from string import Template
+from ui_design_tokens import DARK_UI_COLORS
 
-SPACE_STYLE = '''
-QMainWindow, QDialog, QWidget#projectHub { background: #07101D; }
-QWidget#projectHubBody { background: #07101D; }
-QWidget { color: #DFEAF5; font-size: 13px; }
-QLabel { color: #DFEAF5; background: transparent; }
+SPACE_STYLE = Template('''
+QMainWindow, QDialog, QWidget#projectHub { background: ${background}; }
+QWidget#projectHubBody { background: ${background}; }
+QWidget { color: ${foreground}; font-size: 13px; }
+QLabel { color: ${foreground}; background: transparent; }
 QLabel#moduleLabTitle { color: #ECF6FC; font-size: 24px; font-weight: 700; padding: 3px 0; }
 QLabel#moduleLabSubtitle, QLabel#projectHint { color: #A9BED2; font-size: 12px; }
 QLabel#projectHeading { color: #EDF6FD; font-size: 27px; font-weight: 700; }
-QLabel#projectEyebrow { color: #7BDFF4; font-size: 11px; }
-QLabel#projectEmpty { background: #0B1829; color: #A9BED2; border: 1px solid #304B65; padding: 12px; border-radius: 3px; }
-QGroupBox { background: #101E30; color: #DCEBF7; border: 1px solid #35506A;
+QLabel#projectEyebrow { color: ${accent}; font-size: 11px; }
+QLabel#projectEmpty { background: ${surface}; color: #A9BED2; border: 1px solid #304B65; padding: 12px; border-radius: 3px; }
+QGroupBox { background: ${panel}; color: #DCEBF7; border: 1px solid #35506A;
  border-top: 2px solid #587D99; border-radius: 4px; margin-top: 14px; padding: 14px 10px 10px; font-weight: 600; }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 5px; color: #DCEBF7; }
-QPushButton { background: #162A40; color: #E3EFF9; border: 1px solid #405C77;
+QPushButton { background: ${button}; color: #E3EFF9; border: 1px solid #405C77;
  border-radius: 4px; padding: 8px 12px; min-height: 20px; font-weight: 500; }
 QPushButton:hover { background: #23425B; border-color: #80CDE0; }
 QPushButton:pressed { background: #294F68; }
-QPushButton:focus { border: 2px solid #7BDFF4; }
+QPushButton:focus { border: 2px solid ${accent}; }
 QPushButton[v13Role="primary"], QPushButton#projectCreate, QPushButton#projectOpen {
- background: #7BDFF4; color: #082332; border: 1px solid #7BDFF4; font-weight: 600; }
+ background: ${accent}; color: #082332; border: 1px solid ${accent}; font-weight: 600; }
 QPushButton[v13Role="success"] { background: #164F50; color: #E4F7F0; border: 1px solid #51978E; }
 QPushButton[v13Role="danger"] { background: #442731; color: #FFD6DE; border: 1px solid #9C5D6A; }
 QPushButton:disabled, QPushButton[v13Role="primary"]:disabled, QPushButton[v13Role="success"]:disabled,
 QPushButton#projectCreate:disabled, QPushButton#projectOpen:disabled {
  background: #142234; color: #8296AA; border-color: #30455B; }
 QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
- background: #081321; color: #E6F0F9; border: 1px solid #45627D; border-radius: 3px;
+ background: ${input}; color: #E6F0F9; border: 1px solid #45627D; border-radius: 3px;
  padding: 6px 8px; selection-background-color: #315E79; selection-color: #FFFFFF; }
-QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus { border: 2px solid #7BDFF4; }
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus { border: 2px solid ${accent}; }
 QComboBox QAbstractItemView { background: #102339; color: #E3EFF9; selection-background-color: #315E79; }
 QComboBox::drop-down { border: none; width: 22px; }
-QListWidget, QTableView, QTableWidget { background: #0B1829; alternate-background-color: #11233A;
+QListWidget, QTableView, QTableWidget { background: ${surface}; alternate-background-color: #11233A;
  color: #E3EDF7; border: 1px solid #304B65; gridline-color: #29415A;
  selection-background-color: #315976; selection-color: #FFFFFF; }
 QListWidget::item { padding: 13px 10px; border-bottom: 1px solid #293E54; }
 QListWidget::item:selected { background: #24445E; color: #FFFFFF; }
 /* File dialogs use QListView/QTreeView, rather than QListWidget. Keep both
    their viewports and text readable without recoloring analysis canvases. */
-QFileDialog QAbstractItemView { background: #0B1829; alternate-background-color: #11233A;
+QFileDialog QAbstractItemView { background: ${surface}; alternate-background-color: #11233A;
  color: #E3EDF7; border: 1px solid #304B65;
  selection-background-color: #315976; selection-color: #FFFFFF; }
 QFileDialog QAbstractItemView::item:selected { background: #315976; color: #FFFFFF; }
@@ -58,7 +60,7 @@ QMenu::item:selected { background: #294A65; }
 QStatusBar { background: #081522; color: #AECCDD; }
 QLabel#v13ExperimentStatus { background: #102D43; color: #D4EAF9; border: 1px solid #3D6885; padding: 8px; border-radius: 3px; }
 QToolTip { background: #203B54; color: #FFFFFF; border: 1px solid #80B4CA; padding: 5px; }
-'''
+''').substitute(DARK_UI_COLORS)
 
 
 def apply_space_theme(window):
