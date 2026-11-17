@@ -77,9 +77,42 @@ class ProjectDashboard(QWidget):
         root.addLayout(grid)
         self._route_viewport = scroll.viewport()
         self._route_viewport.installEventFilter(self)
-        self.summary = QLabel(); self.summary.setWordWrap(True); self.summary.setTextFormat(Qt.PlainText)
+        summary_box = QGroupBox('実験記録サマリー')
+        summary_box.setObjectName('projectExperimentSummary')
+        summary_box.setStyleSheet('''
+            QGroupBox#projectExperimentSummary {
+                background: #101E30;
+                color: #DCEBF7;
+                border: 1px solid #37516B;
+                border-radius: 10px;
+                margin-top: 14px;
+                font-weight: 700;
+            }
+            QGroupBox#projectExperimentSummary::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 6px;
+            }
+        ''')
+        summary_layout = QVBoxLayout(summary_box)
+        summary_layout.setContentsMargins(12, 14, 12, 10)
+
+        self.summary = QLabel()
+        self.summary.setWordWrap(True)
+        self.summary.setTextFormat(Qt.PlainText)
         self.summary.setObjectName('v13ExperimentStatus')
-        root.addWidget(self.summary)
+        self.summary.setStyleSheet('''
+            QLabel#v13ExperimentStatus {
+                color: #DFEAF5;
+                background: transparent;
+                border: none;
+                font-size: 14px;
+                padding: 6px 2px;
+            }
+        ''')
+
+        summary_layout.addWidget(self.summary)
+        root.addWidget(summary_box)
         all_features = QPushButton('すべての機能・検索を開く')
         all_features.clicked.connect(host.navigation.show_all_features)
         root.addWidget(all_features)
