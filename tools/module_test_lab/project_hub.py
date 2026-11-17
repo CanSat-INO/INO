@@ -5,15 +5,16 @@ import os
 import sys
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QSize
+from PySide6.QtCore import Qt, QProcess, QProcessEnvironment, QSize, QTimer
 from PySide6.QtGui import QColor, QPainter, QPen, QRadialGradient, QBrush
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout,
-    QFormLayout, QGroupBox, QLabel, QLineEdit, QPushButton, QListWidget,
+    QFormLayout, QGroupBox, QLabel, QLineEdit, QPushButton, QListWidget, QListView,
     QListWidgetItem, QMessageBox, QSizePolicy, QSpinBox,
 )
 import project_store as store
 from project_theme import apply_space_theme
+from project_hub_card_delegate import ProjectCardDelegate
 
 
 class OrbitArtwork(QWidget):
@@ -89,9 +90,27 @@ class ProjectHub(QMainWindow):
         existing = QGroupBox('このPCのプロジェクト')
         existing_layout = QVBoxLayout(existing)
         self.projects = QListWidget()
-        self.projects.setMinimumHeight(96)
-        self.projects.setMaximumHeight(230)
+        self.projects.setObjectName("projectCardList")
+        self.projects.setAccessibleName("このPCのプロジェクト一覧")
+        self.projects.setItemDelegate(
+            ProjectCardDelegate(self.projects)
+        )
+        self.projects.setViewMode(QListView.IconMode)
+        self.projects.setFlow(QListView.LeftToRight)
+        self.projects.setWrapping(True)
+        self.projects.setResizeMode(QListView.Adjust)
+        self.projects.setMovement(QListView.Static)
+        self.projects.setSpacing(10)
+        self.projects.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarAlwaysOff
+        )
+        self.projects.setMinimumHeight(110)
+        self.projects.setMaximumHeight(360)
         self.projects.setWordWrap(True)
+        self.projects.setStyleSheet(
+            "QListWidget#projectCardList {"
+            "background: transparent; border: none; }"
+        )
         self.projects.itemDoubleClicked.connect(lambda item: self.open_selected())
         self.projects.currentItemChanged.connect(self.selection_changed)
         existing_layout.addWidget(self.projects)
@@ -192,6 +211,35 @@ class ProjectHub(QMainWindow):
         apply_space_theme(self)
         self.reload()
 
+    def _layout_project_cards(self):
+        if not hasattr(self, "projects"):
+            return
+
+        available = max(280, self.projects.viewport().width() - 24)
+        columns = 2 if available >= 680 else 1
+        width = (available - 18 * (columns - 1)) // columns
+
+        self.projects.setGridSize(QSize(width, 104))
+
+        count = self.projects.count()
+
+        # グリッドの幅とカードの実際の表示幅を一致させる
+        for index in range(count):
+            item = self.projects.item(index)
+            item.setSizeHint(
+                QSize(max(220, width - 12), 92)
+            )
+        rows = max(1, (count + columns - 1) // columns)
+
+        self.projects.setFixedHeight(
+            min(354, max(112, rows * 104 + 16))
+        )
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "projects"):
+            QTimer.singleShot(0, self._layout_project_cards)
+
     def show_join(self, visible):
         self.join_area.setVisible(visible)
         if visible:
@@ -233,6 +281,8 @@ class ProjectHub(QMainWindow):
                           + (f' 読み取れないプロジェクト：{invalid}件（元データは変更していません）。' if invalid else ''))
         if os.environ.get('CANSAT_LAB_PREVIEW') == '1':
             self.note.setText('確認用プレビュー・一時データです。終了すると作成したプロジェクトは消えます。')
+
+        self._layout_project_cards()
 
     def create_project(self):
         try:
