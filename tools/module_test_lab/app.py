@@ -896,7 +896,7 @@ def main():
     # Qt終了時にウィンドウの削除を予約する
     app.aboutToQuit.connect(window.deleteLater)
 
-    window.show()
+    window.showMaximized()
 
     result = app.exec()
 
