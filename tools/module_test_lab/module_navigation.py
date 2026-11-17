@@ -285,6 +285,11 @@ class ModuleNavigation(QWidget):
             quick = QPushButton(f'{label}　｜　{description}')
             quick.setObjectName(f'moduleNavigationV22Quick{pos+1}')
             quick.setMinimumHeight(37)
+            quick.setMinimumWidth(0)
+            quick.setSizePolicy(
+                QSizePolicy.Ignored,
+                QSizePolicy.Preferred
+            )
             quick.setStyleSheet("""
                 QPushButton { background: #FFFFFF; border: 1px solid #BED2EA;
                     border-radius: 8px; padding: 8px 11px; text-align: left;
@@ -390,6 +395,7 @@ class ModuleNavigation(QWidget):
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setStyleSheet('QScrollArea { background: #0B1B2D; border: none; }')
         self.scroll.viewport().setStyleSheet('background: #0B1B2D;')
+        self.scroll.viewport().installEventFilter(self)
         home_layout.addWidget(self.scroll, 1)
         self.stack.addWidget(self.home)
 
@@ -403,8 +409,6 @@ class ModuleNavigation(QWidget):
 
     @staticmethod
     def quick_column_count(width):
-        if width >= 1200:
-            return 4
         if width >= 700:
             return 2
         return 1
@@ -437,11 +441,25 @@ class ModuleNavigation(QWidget):
             self._reflow_quick_actions()
             self._schedule_card_reflow()
 
+    def eventFilter(self, watched, event):
+        from PySide6.QtCore import QEvent
+
+        if (
+            getattr(self, "_ready", False)
+            and hasattr(self, "scroll")
+            and watched is self.scroll.viewport()
+            and event.type() == QEvent.Resize
+        ):
+            self._schedule_card_reflow()
+
+        return super().eventFilter(watched, event)
+
     def _initialize(self):
         self._ready = True
         self._reflow_quick_actions()
         self.rebuild_home()
         self.show_home()
+        self._schedule_card_reflow()
 
     def _items(self):
         return [(i, self.tabs.tabText(i)) for i in range(self.tabs.count())]
