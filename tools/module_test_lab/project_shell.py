@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os
 from PySide6.QtCore import Qt, QEvent
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QLabel, QPushButton, QScrollArea
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout, QGridLayout, QGroupBox, QLabel, QPushButton, QScrollArea
 import project_store as store
 import records
 from project_theme import apply_space_theme
@@ -19,7 +19,8 @@ class ProjectDashboard(QWidget):
         body = QWidget(); scroll.setWidget(body)
         root = QVBoxLayout(body); root.setSpacing(14)
         start = QGroupBox('実験ワークスペース')
-        row = QHBoxLayout(start)
+        row = QBoxLayout(QBoxLayout.LeftToRight, start)
+        self._workspace_actions = row
         label = QLabel('共通情報・CSV確認・解析・記録'); label.setWordWrap(True)
         row.addWidget(label, 1)
         button = QPushButton('＋ 新しい実験')
@@ -28,8 +29,10 @@ class ProjectDashboard(QWidget):
         button.clicked.connect(host.navigation._open_workflow)
         row.addWidget(button)
         root.addWidget(start)
+        self._share_actions = None
         if store.active_id():
-            share_row = QHBoxLayout()
+            share_row = QBoxLayout(QBoxLayout.LeftToRight)
+            self._share_actions = share_row
             share_note = QLabel('メンバーへ同じプロジェクトを渡す')
             share_note.setWordWrap(True)
             share_row.addWidget(share_note, 1)
@@ -86,6 +89,7 @@ class ProjectDashboard(QWidget):
         root.addStretch(1)
         self.refresh()
         self._reflow_route_cards()
+        self._reflow_workspace_actions()
 
     @staticmethod
     def route_column_count(width):
@@ -97,6 +101,7 @@ class ProjectDashboard(QWidget):
             and event.type() == QEvent.Resize
         ):
             self._reflow_route_cards()
+            self._reflow_workspace_actions()
         return super().eventFilter(watched, event)
 
     def _reflow_route_cards(self):
@@ -123,6 +128,23 @@ class ProjectDashboard(QWidget):
         self._route_grid.setColumnStretch(
             1, 1 if columns == 2 else 0
         )
+
+    def _reflow_workspace_actions(self):
+        width = self._route_viewport.width()
+        direction = (
+            QBoxLayout.TopToBottom
+            if width < 720
+            else QBoxLayout.LeftToRight
+        )
+
+        layouts = (
+            self._workspace_actions,
+            self._share_actions,
+        )
+
+        for layout in layouts:
+            if layout is not None and layout.direction() != direction:
+                layout.setDirection(direction)
 
     def share_project(self):
         from project_share_dialogs import export_project
