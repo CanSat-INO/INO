@@ -196,6 +196,8 @@ class ModuleNavigation(QWidget):
         self._ready = False
         self._last_page = None
         self._active_feature_group = None
+        self._card_columns = None
+        self._card_reflow_pending = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
@@ -217,13 +219,18 @@ class ModuleNavigation(QWidget):
         self.home_button.setObjectName('moduleNavigationHomeButton')
         self.home_button.clicked.connect(self.show_home)
         self.home_button.setStyleSheet('''
-            QPushButton { background: #FFFFFF; color: #1555B4;
-                border: 1px solid #D2E1F7; border-radius: 9px;
+            QPushButton { background: #162A40; color: #DFEAF5;
+                border: 1px solid #37516B; border-radius: 9px;
                 padding: 10px 16px; font-weight: 700; }
-            QPushButton:hover { background: #F0F6FF; }
+            QPushButton:hover { background: #223C59; }
         ''')
         self.page_title = QLabel('ホーム')
-        self.page_title.setStyleSheet('font-weight: 700; color: #142B50; font-size: 15px;')
+        self.page_title.setStyleSheet('font-weight: 700; color: #DCEBF7; font-size: 15px;')
+        self.page_title.setMinimumWidth(0)
+        self.page_title.setWordWrap(True)
+        self.page_title.setSizePolicy(
+            QSizePolicy.Ignored, QSizePolicy.Preferred
+        )
         self.category_badge = QLabel('')
         self.category_badge.setVisible(False)
         bar.addWidget(self.menu_button)
@@ -244,6 +251,7 @@ class ModuleNavigation(QWidget):
         home_layout.addWidget(heading)
         subtitle = QLabel('機能を目的別に整理しました。機能名・カテゴリ・関連語（GPS、IMU、センサー等）で検索できます。')
         subtitle.setStyleSheet('color: #4D6583; font-size: 12px;')
+        subtitle.setWordWrap(True)
         home_layout.addWidget(subtitle)
 
         # v22: task-focused entry points; underlying screens stay untouched.
@@ -417,6 +425,7 @@ class ModuleNavigation(QWidget):
         super().resizeEvent(event)
         if getattr(self, "_ready", False):
             self._reflow_quick_actions()
+            self._schedule_card_reflow()
 
     def _initialize(self):
         self._ready = True
@@ -474,9 +483,36 @@ class ModuleNavigation(QWidget):
         tile.clicked.connect(lambda checked=False, i=tab_index: self.open_tab(i))
         return tile
 
+    @staticmethod
+    def feature_column_count(width):
+        return 1 if width < 720 else 2
+
+    def _schedule_card_reflow(self):
+        if self._card_reflow_pending:
+            return
+        self._card_reflow_pending = True
+        QTimer.singleShot(0, self._reflow_feature_cards)
+
+    def _reflow_feature_cards(self):
+        self._card_reflow_pending = False
+        if not getattr(self, "_ready", False):
+            return
+        if self.search.composing:
+            return
+        columns = self.feature_column_count(
+            self.scroll.viewport().width()
+        )
+        if columns != self._card_columns:
+            self.rebuild_home()
+
     def rebuild_home(self, *_):
         if not self._ready:
             return
+
+        columns = self.feature_column_count(
+            self.scroll.viewport().width()
+        )
+        self._card_columns = columns
 
         container = QWidget()
         container.setObjectName('moduleNavigationGridContainer')
@@ -535,22 +571,22 @@ class ModuleNavigation(QWidget):
                 "padding: 5px 3px;"
             )
 
-            grid.addWidget(heading, row, 0, 1, 2)
+            grid.addWidget(heading, row, 0, 1, columns)
             grid.setRowMinimumHeight(row, 34)
 
             row += 1
             header_count += 1
 
             for position, (tab_index, title) in enumerate(items):
-                tile_row = row + position // 2
-                tile_col = position % 2
+                tile_row = row + position // columns
+                tile_col = position % columns
                 grid.addWidget(
                     self._make_tile(tab_index, title),
                     tile_row,
                     tile_col
                 )
 
-            rows_for_group = (len(items) + 1) // 2
+            rows_for_group = (len(items) + columns - 1) // columns
 
             grid.setRowMinimumHeight(row, NavigationTile.HEIGHT)
             for r in range(row + 1, row + rows_for_group):
@@ -565,10 +601,11 @@ class ModuleNavigation(QWidget):
                 "別のキーワードを入力してください。"
             )
             empty.setStyleSheet("padding: 20px;")
-            grid.addWidget(empty, 0, 0, 1, 2)
+            grid.addWidget(empty, 0, 0, 1, columns)
 
         grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
+        if columns == 2:
+            grid.setColumnStretch(1, 1)
 
         minimum = (
             24
@@ -627,7 +664,7 @@ class ModuleNavigation(QWidget):
             self.rebuild_home()
         self.stack.setCurrentWidget(self.home)
         self.page_title.setText('ホーム')
-        self.page_title.setStyleSheet('font-weight: 700; color: #142B50; font-size: 15px;')
+        self.page_title.setStyleSheet('font-weight: 700; color: #DCEBF7; font-size: 15px;')
         self.category_badge.setVisible(False)
 
     def show_all_features(self):
