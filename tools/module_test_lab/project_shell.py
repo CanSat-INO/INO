@@ -1,7 +1,7 @@
 """Purpose-based project dashboard over the existing real Test Lab screens."""
 from __future__ import annotations
 import os
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QLabel, QPushButton, QScrollArea
 import project_store as store
 import records
@@ -55,6 +55,9 @@ class ProjectDashboard(QWidget):
                           ('台帳・添付の品質点検', '共通基盤・全体品質チェック（v21）'))),
         )
         grid = QGridLayout()
+        self._route_grid = grid
+        self._route_cards = []
+        self._route_columns = 2
         for index, (title, targets) in enumerate(groups):
             group = QGroupBox(title)
             column = QVBoxLayout(group)
@@ -65,9 +68,12 @@ class ProjectDashboard(QWidget):
                 button.clicked.connect(lambda checked=False, name=target: host.navigation.open_named_tab(name))
                 column.addWidget(button)
             column.addStretch(1)
+            self._route_cards.append(group)
             grid.addWidget(group, index // 2, index % 2)
         grid.setColumnStretch(0, 1); grid.setColumnStretch(1, 1)
         root.addLayout(grid)
+        self._route_viewport = scroll.viewport()
+        self._route_viewport.installEventFilter(self)
         self.summary = QLabel(); self.summary.setWordWrap(True); self.summary.setTextFormat(Qt.PlainText)
         self.summary.setObjectName('v13ExperimentStatus')
         root.addWidget(self.summary)
@@ -79,6 +85,44 @@ class ProjectDashboard(QWidget):
             root.addWidget(host.project_packages)
         root.addStretch(1)
         self.refresh()
+        self._reflow_route_cards()
+
+    @staticmethod
+    def route_column_count(width):
+        return 1 if width < 720 else 2
+
+    def eventFilter(self, watched, event):
+        if (
+            watched is getattr(self, "_route_viewport", None)
+            and event.type() == QEvent.Resize
+        ):
+            self._reflow_route_cards()
+        return super().eventFilter(watched, event)
+
+    def _reflow_route_cards(self):
+        columns = self.route_column_count(
+            self._route_viewport.width()
+        )
+        if columns == self._route_columns:
+            return
+
+        self._route_columns = columns
+
+        # ボタンとグループを再生成せず位置だけ変更
+        for card in self._route_cards:
+            self._route_grid.removeWidget(card)
+
+        for index, card in enumerate(self._route_cards):
+            self._route_grid.addWidget(
+                card,
+                index // columns,
+                index % columns
+            )
+
+        self._route_grid.setColumnStretch(0, 1)
+        self._route_grid.setColumnStretch(
+            1, 1 if columns == 2 else 0
+        )
 
     def share_project(self):
         from project_share_dialogs import export_project
