@@ -110,7 +110,7 @@ def install_project_shell(window):
     switch = QPushButton('プロジェクト切替')
     switch.setObjectName('projectSwitch')
     switch.clicked.connect(window.close)  # Existing close confirmation protects unsaved input.
-    nav.layout().itemAt(0).layout().insertWidget(2, switch)
+    nav.header_frame.layout().insertWidget(2, switch)
     window.project_dashboard = ProjectDashboard(window)
     nav.project_home = window.project_dashboard
     nav.stack.addWidget(nav.project_home)

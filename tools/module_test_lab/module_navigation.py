@@ -202,7 +202,17 @@ class ModuleNavigation(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        bar = QHBoxLayout()
+        self.header_frame = QFrame(self)
+        self.header_frame.setObjectName("moduleNavigationHeader")
+        self.header_frame.setStyleSheet(
+            "QFrame#moduleNavigationHeader {"
+            " background-color: #101E30;"
+            " border: 1px solid #37516B;"
+            " border-radius: 10px;"
+            "}"
+        )
+        bar = QHBoxLayout(self.header_frame)
+        bar.setContentsMargins(10, 8, 10, 8)
         bar.setSpacing(10)
         self.menu_button = QPushButton('☰  機能一覧')
         self.menu_button.setObjectName('moduleNavigationMenuButton')
@@ -237,7 +247,7 @@ class ModuleNavigation(QWidget):
         bar.addWidget(self.home_button)
         bar.addWidget(self.page_title, 1)
         bar.addWidget(self.category_badge)
-        layout.addLayout(bar)
+        layout.addWidget(self.header_frame)
 
         self.stack = QStackedWidget(self)
         self.home = QWidget()
