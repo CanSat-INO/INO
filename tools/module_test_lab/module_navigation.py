@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 from gui_theme_v13 import CATEGORIES, category_for
-from navigation_feature_groups import FEATURE_GROUPS, feature_group_for
+from navigation_feature_groups import (FEATURE_GROUPS, feature_group_for, feature_group_presentation)
 from navigation_search_v13_5 import matches_search
 
 
@@ -425,8 +425,7 @@ class ModuleNavigation(QWidget):
         return re.sub(r"[（(]\s*v(?:1[0-9]|2[0-9])(?:\.[0-9]+)?\s*[）)]", "", title, flags=re.I).strip()
 
     def _make_tile(self, tab_index, title):
-        category = category_for(title)
-        category_title, accent, pale, hint = CATEGORIES[category]
+        category_title, accent, pale, hint = feature_group_presentation(title)
         # QFrame-based card: avoids QPushButton QSS clipping in WSL/X11.
         tile = NavigationTile(self._display_title(title), category_title, accent, pale,
                               ITEM_ICONS.get(title, '◈'))
@@ -615,8 +614,7 @@ class ModuleNavigation(QWidget):
 
     def _update_header(self, index):
         title = self.tabs.tabText(index)
-        key = category_for(title)
-        name, accent, pale, _ = CATEGORIES[key]
+        name, accent, pale, _ = feature_group_presentation(title)
         if hasattr(self, "project_home"):
             accent, pale = "#7BDFF4", "#112A40"
         self.page_title.setText(self._display_title(title))

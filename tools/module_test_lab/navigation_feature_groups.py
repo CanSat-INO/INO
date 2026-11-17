@@ -52,3 +52,29 @@ TITLE_GROUPS = {
 def feature_group_for(title):
     """未知の機能は誤分類せず「その他」に表示する。"""
     return TITLE_GROUPS.get(str(title), "other")
+
+
+# 機能カードで使用する色（アクセント色・アイコン背景色）
+FEATURE_GROUP_COLORS = {
+    "sensor": ("#168B80", "#DDF7F1"),
+    "code": ("#3679D8", "#E6EFFF"),
+    "mission": ("#B77B2E", "#FFF0DB"),
+    "records": ("#8752C8", "#F1E9FF"),
+    "system": ("#367D9D", "#E3F4FC"),
+    "other": ("#68788F", "#EEF1F6"),
+}
+
+
+def feature_group_presentation(title):
+    """分類名、アクセント色、背景色、説明を返す。"""
+    key = feature_group_for(title)
+    group = next(
+        (entry for entry in FEATURE_GROUPS if entry[0] == key),
+        None
+    )
+    if group is None:
+        raise ValueError(f"不明な分類: {key}")
+
+    _, label, hint = group
+    accent, pale = FEATURE_GROUP_COLORS[key]
+    return label, accent, pale, hint
