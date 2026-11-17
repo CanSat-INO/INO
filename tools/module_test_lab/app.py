@@ -253,6 +253,8 @@ class TestLab(QMainWindow):
         self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_v14_host_tab(); self.build_v14_1_modules_tab(); self.build_v15_sensor_tab(); self.build_v16_journal_tab(); self.build_v17_phase_tab(); self.build_v18_bus_tab(); self.build_v19_compare_tab(); self.build_v20_workflow_tab(); self.build_v21_quality_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_guide_tab(); self.build_ros_gazebo_diagnostics_tab(); self.build_platformio_project_tab()
         self.refresh_ledger()
         style_action_buttons(self)
+        from detached_tab_ui import install_detached_tab_ui
+        install_detached_tab_ui(self)
         self.statusBar().showMessage(f"実験記録の保存先: {DATA_DIR} | GitHub同期は手動です")
 
     def build_ros_gazebo_diagnostics_tab(self):
@@ -808,6 +810,20 @@ class TestLab(QMainWindow):
             if packages is not None:packages.resume()
             event.ignore()
             return
+        detached = getattr(self, "detached_tab_manager", None)
+        if detached is not None and not detached.close_all():
+            if auto is not None:
+                auto.resume()
+            if packages is not None:
+                packages.resume()
+            event.ignore()
+            QMessageBox.warning(
+                self,
+                "終了できません",
+                "別ウィンドウを元のタブへ戻せませんでした。"
+            )
+            return
+
         super().closeEvent(event)
 
     def export_table(self):
