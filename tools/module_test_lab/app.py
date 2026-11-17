@@ -269,7 +269,21 @@ class TestLab(QMainWindow):
 
     def build_sim_tab(self):
         tab = QWidget(); self.tabs.addTab(tab, "着地検知シミュレーション")
-        horizontal = QHBoxLayout(tab)
+        from PySide6.QtWidgets import QBoxLayout, QScrollArea, QFrame
+        from landing_responsive import LandingLayoutController
+
+        outer = QVBoxLayout(tab)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea(tab)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(scroll)
+
+        content = QWidget()
+        horizontal = QBoxLayout(QBoxLayout.LeftToRight, content)
+        horizontal.setContentsMargins(9, 9, 9, 9)
+
         left = QWidget(); left.setMaximumWidth(360)
         left_lay = QVBoxLayout(left)
         setup = QGroupBox("仮想センサーデータの条件")
@@ -304,6 +318,13 @@ class TestLab(QMainWindow):
         gr = QVBoxLayout(graph_container)
         self.plot = SensorPlot(); gr.addWidget(self.plot)
         horizontal.addWidget(graph_container, 1)
+
+        scroll.setWidget(content)
+        self._landing_scroll = scroll
+        self._landing_content_layout = horizontal
+        self._landing_layout_controller = LandingLayoutController(
+            scroll, horizontal, left, threshold=900
+        )
 
     def run_reference(self):
         code = self.scenario.currentData()
