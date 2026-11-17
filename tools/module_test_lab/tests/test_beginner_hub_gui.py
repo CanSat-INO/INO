@@ -94,7 +94,7 @@ class BeginnerHubTests(unittest.TestCase):
         for width in (820,1020,1920):
             self.hub.resize(width,900);self.app.processEvents()
             self.assertEqual(self.hub.centralWidget().horizontalScrollBar().maximum(),0)
-            self.assertLessEqual(content.width(),1080)
+            self.assertLessEqual(content.width(),1200)
             if width<1080:self.assertGreater(content.width(),width-100)
         output=os.environ.get('CANSAT_GUI_OUTPUT_DIR')
         if output:

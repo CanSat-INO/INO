@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 import project_store as store
 from project_theme import apply_space_theme
+from project_hub_artwork import SpaceHubBackground
 from project_hub_card_delegate import ProjectCardDelegate
 
 
@@ -66,18 +67,19 @@ class ProjectHub(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         self.setCentralWidget(scroll)
-        surface = QWidget()
+        surface = SpaceHubBackground()
         surface.setObjectName('projectHubBody')
         scroll.setWidget(surface)
         center = QHBoxLayout(surface)
         center.setContentsMargins(0, 0, 0, 0)
         body = QWidget()
         body.setObjectName('projectHubContent')
-        body.setMaximumWidth(1080)
+        body.setMaximumWidth(1200)
         center.addStretch(1); center.addWidget(body, 1000); center.addStretch(1)
         root = QVBoxLayout(body)
         root.setContentsMargins(22, 14, 22, 18)
         root.setSpacing(12)
+        root.addStretch(1)
         hero = QHBoxLayout()
         title_column = QVBoxLayout()
         tag = QLabel('CanSat / INO'); tag.setObjectName('projectEyebrow')
@@ -219,7 +221,7 @@ class ProjectHub(QMainWindow):
         columns = 2 if available >= 680 else 1
         width = (available - 18 * (columns - 1)) // columns
 
-        self.projects.setGridSize(QSize(width, 104))
+        self.projects.setGridSize(QSize(width, 132))
 
         count = self.projects.count()
 
@@ -227,12 +229,12 @@ class ProjectHub(QMainWindow):
         for index in range(count):
             item = self.projects.item(index)
             item.setSizeHint(
-                QSize(max(220, width - 12), 92)
+                QSize(max(220, width - 12), 116)
             )
         rows = max(1, (count + columns - 1) // columns)
 
         self.projects.setFixedHeight(
-            min(354, max(112, rows * 104 + 16))
+            min(354, max(148, rows * 132 + 16))
         )
 
     def resizeEvent(self, event):
