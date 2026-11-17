@@ -195,6 +195,7 @@ class ModuleNavigation(QWidget):
         super().__init__(parent)
         self._ready = False
         self._last_page = None
+        self._active_feature_group = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
@@ -290,22 +291,58 @@ class ModuleNavigation(QWidget):
         all_label = QLabel('すべての機能を探す（カテゴリ・キーワード検索）')
         all_label.setStyleSheet('color: #284D79; font-size: 13px; font-weight: 700;')
         home_layout.addWidget(all_label)
-        legend = QHBoxLayout()
-        legend.setSpacing(7)
-        for key in ('landing', 'control', 'fault', 'results', 'simulation', 'guide'):
-            name, accent, pale, _ = CATEGORIES[key]
-            chip = QPushButton('●  ' + name)
-            chip.setObjectName('moduleNavigationCategory' + key.capitalize())
-            chip.setToolTip(name + 'の機能を絞り込む（再度押すと解除）')
-            chip.setStyleSheet(
-                f'QPushButton {{ color: {accent}; background: {pale}; border: 1px solid {pale};'
-                'border-radius: 13px; padding: 6px 12px; font-weight: 750; min-height: 17px; }'
-                f'QPushButton:hover {{ border: 1px solid {accent}; }}'
+        # 目的別の5カテゴリーと「すべて」
+        category_grid = QGridLayout()
+        category_grid.setHorizontalSpacing(8)
+        category_grid.setVerticalSpacing(7)
+
+        self._group_buttons = {}
+
+        options = [("all", "すべて")]
+        options.extend(
+            (key, label)
+            for key, label, _ in FEATURE_GROUPS
+            if key not in ("other",)
+        )
+
+        for position, (key, label) in enumerate(options):
+            chip = QPushButton(label)
+            chip.setObjectName(
+                "moduleNavigationFeatureGroup"
+                + key.capitalize()
             )
-            chip.clicked.connect(lambda checked=False, label=name: self._toggle_category(label))
-            legend.addWidget(chip)
-        legend.addStretch(1)
-        home_layout.addLayout(legend)
+            chip.setCheckable(True)
+            chip.setMinimumHeight(34)
+            chip.setStyleSheet("""
+                QPushButton {
+                    background: #142B42;
+                    color: #DCEBF7;
+                    border: 1px solid #45627D;
+                    border-radius: 8px;
+                    padding: 7px 10px;
+                    font-weight: 650;
+                }
+                QPushButton:hover {
+                    background: #20445F;
+                    border-color: #7BDFF4;
+                }
+                QPushButton:checked {
+                    background: #235875;
+                    color: #FFFFFF;
+                    border: 1px solid #7BDFF4;
+                }
+            """)
+            chip.clicked.connect(
+                lambda checked=False, group=key:
+                self._select_feature_group(group)
+            )
+            self._group_buttons[key] = chip
+            category_grid.addWidget(
+                chip, position // 3, position % 3
+            )
+
+        self._refresh_feature_group_buttons()
+        home_layout.addLayout(category_grid)
 
         self.search = JapaneseSearchEdit()
         self.search.setObjectName('moduleNavigationSearch')
@@ -349,6 +386,20 @@ class ModuleNavigation(QWidget):
 
     def _items(self):
         return [(i, self.tabs.tabText(i)) for i in range(self.tabs.count())]
+
+    def _refresh_feature_group_buttons(self):
+        active = self._active_feature_group or "all"
+        for key, button in self._group_buttons.items():
+            button.setChecked(key == active)
+
+    def _select_feature_group(self, group):
+        if group == "all" or group == self._active_feature_group:
+            self._active_feature_group = None
+        else:
+            self._active_feature_group = group
+
+        self._refresh_feature_group_buttons()
+        self.rebuild_home()
 
     def _toggle_category(self, label):
         # Category pills remain usable even without a functioning OS-side IME.
@@ -405,6 +456,14 @@ class ModuleNavigation(QWidget):
             for i, name in self._items()
             if matches_search(name, CATEGORIES[category_for(name)][0], query)
         ]
+
+        if self._active_feature_group is not None:
+            matched = [
+                (i, name)
+                for i, name in matched
+                if feature_group_for(name)
+                == self._active_feature_group
+            ]
 
         grouped = {
             key: [] for key, _, _ in FEATURE_GROUPS
