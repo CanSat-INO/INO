@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 from gui_theme_v13 import CATEGORIES, category_for
+from navigation_feature_groups import FEATURE_GROUPS, feature_group_for
 from navigation_search_v13_5 import matches_search
 
 
@@ -84,11 +85,11 @@ class NavigationTile(QFrame):
         self.setAccessibleName(f'{category_title}：{title}')
         self.setToolTip(self._title)
         self.setStyleSheet(f'''
-            QFrame {{ background: #FFFFFF; border: 1px solid #DCE6F1;
+            QFrame {{ background: #183149; border: 1px solid #DCE6F1;
                       border-left: 5px solid {accent}; border-radius: 10px; }}
-            QFrame:hover {{ background: #F5F9FF; border-color: #93B8ED;
+            QFrame:hover {{ background: #24435F; border-color: #93B8ED;
                            border-left: 5px solid {accent}; }}
-            QFrame:focus {{ background: #F2F7FF; border: 2px solid #2A72DC;
+            QFrame:focus {{ background: #24435F; border: 2px solid #2A72DC;
                            border-left: 5px solid {accent}; }}
         ''')
 
@@ -111,7 +112,7 @@ class NavigationTile(QFrame):
         info.setContentsMargins(0, 0, 0, 0)
         category_label = QLabel(category_title)
         category_label.setStyleSheet(
-            f'QLabel {{ color: {accent}; font-size: 12px; font-weight: 700;'
+            f'QLabel {{ color: #ADD8F0; font-size: 12px; font-weight: 700;'
             ' background: transparent; border: none; }'
         )
         category_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -119,7 +120,7 @@ class NavigationTile(QFrame):
 
         self.title_label = QLabel(self._title)
         self.title_label.setStyleSheet(
-            'QLabel { color: #142F53; font-size: 15px; font-weight: 700;'
+            'QLabel { color: #EDF6FF; font-size: 15px; font-weight: 700;'
             ' background: transparent; border: none; }'
         )
         self.title_label.setMinimumWidth(0)
@@ -132,7 +133,7 @@ class NavigationTile(QFrame):
         arrow.setAlignment(Qt.AlignCenter)
         arrow.setFixedWidth(21)
         arrow.setStyleSheet(
-            'QLabel { color: #46719C; font-size: 23px; font-weight: 600;'
+            'QLabel { color: #A4C4E5; font-size: 23px; font-weight: 600;'
             ' background: transparent; border: none; }'
         )
         arrow.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -328,7 +329,8 @@ class ModuleNavigation(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
-        self.scroll.setStyleSheet('QScrollArea { background: transparent; border: none; }')
+        self.scroll.setStyleSheet('QScrollArea { background: #0B1B2D; border: none; }')
+        self.scroll.viewport().setStyleSheet('background: #0B1B2D;')
         home_layout.addWidget(self.scroll, 1)
         self.stack.addWidget(self.home)
 
@@ -385,34 +387,108 @@ class ModuleNavigation(QWidget):
     def rebuild_home(self, *_):
         if not self._ready:
             return
+
         container = QWidget()
+        container.setObjectName('moduleNavigationGridContainer')
+        container.setStyleSheet(
+            'QWidget#moduleNavigationGridContainer { background-color: #0B1B2D; }'
+        )
         grid = QGridLayout(container)
         grid.setContentsMargins(4, 10, 4, 14)
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(11)
+
         query = self.search.text()
+
         matched = [
-            (i, name) for i, name in self._items()
+            (i, name)
+            for i, name in self._items()
             if matches_search(name, CATEGORIES[category_for(name)][0], query)
         ]
-        for position, (tab_index, title) in enumerate(matched):
-            grid.addWidget(self._make_tile(tab_index, title), position // 2, position % 2)
+
+        grouped = {
+            key: [] for key, _, _ in FEATURE_GROUPS
+        }
+
+        for tab_index, title in matched:
+            key = feature_group_for(title)
+            grouped[key].append((tab_index, title))
+
+        row = 0
+        header_count = 0
+        tile_row_count = 0
+
+        for key, label, hint in FEATURE_GROUPS:
+            items = grouped[key]
+            if not items:
+                continue
+
+            heading = QLabel(
+                f"{label}（{len(items)}件）"
+            )
+            heading.setObjectName(
+                "moduleNavigationGroup" + key.capitalize()
+            )
+            heading.setToolTip(hint)
+            heading.setStyleSheet(
+                "font-size: 15px; "
+                "font-weight: 750; "
+                "color: #E2EFFB; "
+                "padding: 5px 3px;"
+            )
+
+            grid.addWidget(heading, row, 0, 1, 2)
+            grid.setRowMinimumHeight(row, 34)
+
+            row += 1
+            header_count += 1
+
+            for position, (tab_index, title) in enumerate(items):
+                tile_row = row + position // 2
+                tile_col = position % 2
+                grid.addWidget(
+                    self._make_tile(tab_index, title),
+                    tile_row,
+                    tile_col
+                )
+
+            rows_for_group = (len(items) + 1) // 2
+
+            grid.setRowMinimumHeight(row, NavigationTile.HEIGHT)
+            for r in range(row + 1, row + rows_for_group):
+                grid.setRowMinimumHeight(r, NavigationTile.HEIGHT)
+
+            row += rows_for_group
+            tile_row_count += rows_for_group
+
         if not matched:
-            empty = QLabel('一致する機能がありません。別のキーワードを入力してください。')
-            empty.setStyleSheet('padding: 20px; color: #526780;')
-            grid.addWidget(empty, 0, 0)
+            empty = QLabel(
+                "一致する機能がありません。"
+                "別のキーワードを入力してください。"
+            )
+            empty.setStyleSheet("padding: 20px;")
+            grid.addWidget(empty, 0, 0, 1, 2)
+
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
-        row_count = (len(matched) + 1) // 2
-        for row in range(row_count):
-            grid.setRowMinimumHeight(row, NavigationTile.HEIGHT)
-        # Reserve the entire card rows; overflow scrolls instead of shrinking.
-        minimum = 10 + 14 + row_count * NavigationTile.HEIGHT + max(0, row_count - 1) * 11
+
+        minimum = (
+            24
+            + header_count * 34
+            + tile_row_count * NavigationTile.HEIGHT
+            + max(0, row - 1) * 11
+        )
+
         container.setMinimumHeight(max(80, minimum))
-        container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-        grid.setRowStretch(row_count, 1)
+        container.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.MinimumExpanding
+        )
+        grid.setRowStretch(row, 1)
+
         prior = self.scroll.takeWidget()
         self.scroll.setWidget(container)
+
         if prior is not None:
             prior.deleteLater()
 
