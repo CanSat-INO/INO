@@ -252,6 +252,9 @@ class ModuleNavigation(QWidget):
         guide_label.setStyleSheet('color: #254A75; font-size: 13px; font-weight: 700;')
         home_layout.addWidget(guide_label)
         quick_grid = QGridLayout()
+        self._quick_grid = quick_grid
+        self._quick_buttons = []
+        self._quick_columns = None
         quick_grid.setHorizontalSpacing(10)
         quick_grid.setVerticalSpacing(8)
         quick_entries = [
@@ -273,6 +276,7 @@ class ModuleNavigation(QWidget):
             """)
             quick.setToolTip(f'{label}：{description}')
             quick.clicked.connect(lambda checked=False, name=target: self.open_named_tab(name))
+            self._quick_buttons.append(quick)
             quick_grid.addWidget(quick, pos // 2, pos % 2)
         home_layout.addLayout(quick_grid)
 
@@ -379,8 +383,44 @@ class ModuleNavigation(QWidget):
         self.stack.setCurrentWidget(self.home)
         QTimer.singleShot(0, self._initialize)
 
+    @staticmethod
+    def quick_column_count(width):
+        if width >= 1200:
+            return 4
+        if width >= 700:
+            return 2
+        return 1
+
+    def _reflow_quick_actions(self):
+        if not getattr(self, "_ready", False):
+            return
+
+        columns = self.quick_column_count(self.width())
+
+        if columns == self._quick_columns:
+            return
+
+        self._quick_columns = columns
+
+        # ボタン自体は作り直さず、位置だけ変更する
+        for button in self._quick_buttons:
+            self._quick_grid.removeWidget(button)
+
+        for i, button in enumerate(self._quick_buttons):
+            self._quick_grid.addWidget(
+                button,
+                i // columns,
+                i % columns
+            )
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if getattr(self, "_ready", False):
+            self._reflow_quick_actions()
+
     def _initialize(self):
         self._ready = True
+        self._reflow_quick_actions()
         self.rebuild_home()
         self.show_home()
 
