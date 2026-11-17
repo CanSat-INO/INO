@@ -74,18 +74,23 @@ class HostCppV14Tab(QWidget):
         case_row.addWidget(choose_csv)
         lay.addLayout(case_row)
 
-        bar = QHBoxLayout()
+        bar = QVBoxLayout()
         self.trusted = QCheckBox('選択したC++ソースを信頼し、PC上でコンパイル・実行することを理解しました')
         self.trusted.toggled.connect(self._update_button)
-        bar.addWidget(self.trusted, 1)
+        bar.addWidget(self.trusted)
+
+        action_buttons = QHBoxLayout()
         self.run_button = QPushButton('▶ ホスト試験を実行')
         self.run_button.setEnabled(False)
         self.run_button.clicked.connect(self.start_run)
-        bar.addWidget(self.run_button)
+        action_buttons.addWidget(self.run_button)
+
         self.save_button = QPushButton('結果をCSV/JSON保存')
         self.save_button.setEnabled(False)
         self.save_button.clicked.connect(self.save_report)
-        bar.addWidget(self.save_button)
+        action_buttons.addWidget(self.save_button)
+
+        bar.addLayout(action_buttons)
         lay.addLayout(bar)
 
         self.summary = QLabel('未実行：同梱のデモコードとサンプルCSVで操作を確認できます。')
