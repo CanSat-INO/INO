@@ -7,7 +7,7 @@ import tempfile
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
     QLineEdit, QLabel, QPushButton, QPlainTextEdit, QFileDialog,
-    QMessageBox, QDoubleSpinBox, QSplitter,
+    QMessageBox, QDoubleSpinBox, QSplitter, QScrollArea, QFrame,
 )
 from PySide6.QtCore import Qt
 
@@ -99,7 +99,9 @@ class CppLandingTab(QWidget):
         right = QWidget()
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(2, 2, 2, 2)
-        right_layout.addWidget(QLabel("計算結果グラフ（赤=接地時刻、緑=C++判定時刻）"))
+        graph_title = QLabel("計算結果グラフ（赤=接地時刻、緑=C++判定時刻）")
+        graph_title.setWordWrap(True)
+        right_layout.addWidget(graph_title)
         self.plot = TimePlot()
         right_layout.addWidget(self.plot, 1)
         right_info = QLabel("入力ログのlanding_detected列は無視し、C++の判定値で置き換えます。")
@@ -107,11 +109,44 @@ class CppLandingTab(QWidget):
         right_layout.addWidget(right_info)
         split.addWidget(right)
         split.setSizes([440, 650])
-        outer.addWidget(split, 1)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidget(split)
+        outer.addWidget(scroll, 1)
+
+        self._cpp_landing_scroll = scroll
+        self._cpp_landing_splitter = split
+        self._cpp_landing_narrow = None
+        self._update_responsive_layout()
         for signal in (self.tester.textChanged, self.scenario.textChanged,
                        self.version.textChanged, self.truth.textChanged,
                        self.tolerance.valueChanged):
             signal.connect(self.invalidate)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_cpp_landing_splitter"):
+            self._update_responsive_layout()
+
+    def _update_responsive_layout(self):
+        narrow = self.width() < 900
+
+        if self._cpp_landing_narrow == narrow:
+            return
+
+        self._cpp_landing_narrow = narrow
+        splitter = self._cpp_landing_splitter
+
+        splitter.setOrientation(
+            Qt.Vertical if narrow else Qt.Horizontal
+        )
+
+        splitter.setMinimumHeight(860 if narrow else 0)
+        splitter.setSizes(
+            [470, 390] if narrow else [440, 650]
+        )
 
     def invalidate(self, *_):
         self.current_result = None
