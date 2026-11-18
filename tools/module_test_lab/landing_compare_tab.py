@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QLineEdit, QFileDialog, QMessageBox,
     QDoubleSpinBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QSplitter, QPlainTextEdit, QTabWidget,
+    QScrollArea, QFrame,
 )
 
 from cpp_landing_runner import DEMO_SOURCE
@@ -99,6 +100,7 @@ class LandingCompareTab(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setMinimumHeight(260)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.itemSelectionChanged.connect(self.show_case)
         split.addWidget(self.table)
@@ -114,8 +116,19 @@ class LandingCompareTab(QWidget):
         self.plots.addTab(self.plot_b,'新コードのセンサーグラフ')
         dlay.addWidget(self.plots,2)
         split.addWidget(detail_container)
-        split.setSizes([230,360])
-        layout.addWidget(split,1)
+        # Keep the table and charts usable even in a short window.
+        split.setChildrenCollapsible(False)
+        split.setMinimumHeight(760)
+        split.setSizes([280, 480])
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidget(split)
+        layout.addWidget(scroll, 1)
+
+        self._compare_results_scroll = scroll
+        self._compare_results_splitter = split
 
         self.before_path.textChanged.connect(self.invalidate)
         self.after_path.textChanged.connect(self.invalidate)
