@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QAbstractItemView,
     QHeaderView, QSplitter, QTabWidget, QTextEdit, QPlainTextEdit, QGroupBox,
+    QGridLayout, QScrollArea, QFrame,
 )
 
 import dashboard_data as data
@@ -150,35 +151,56 @@ class DashboardTab(QWidget):
         self.records = []
         self.filtered = []
         self.by_id = {}
-        lay = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(scroll)
+
+        content = QWidget()
+        lay = QVBoxLayout(content)
+
         heading = QLabel("実験結果ダッシュボード")
         heading.setStyleSheet("font-size: 17px; color: #17365e; font-weight: bold;")
         lay.addWidget(heading)
         info = _label("GitHubから取得した記録も、ローカル台帳の記録もここに表示します。実機試験と参考モデルは区別してください。")
         info.setStyleSheet("color: #607083;")
         lay.addWidget(info)
-        filters = QHBoxLayout()
+        filters = QGridLayout()
         self.source = QComboBox(); self.source.addItems(["すべて", "参考モデルのみ", "参考モデル以外"])
         self.module = QComboBox(); self.module.addItems(["すべて"])
         self.status = QComboBox(); self.status.addItems(["すべて", "成功", "失敗", "未判定"])
         self.tester = QLineEdit(); self.tester.setPlaceholderText("担当者名で検索")
-        for caption, widget in [("データ種別", self.source), ("機能", self.module),
-                                ("判定", self.status), ("担当者", self.tester)]:
-            filters.addWidget(QLabel(caption)); filters.addWidget(widget, 1)
+        for index, (caption, widget) in enumerate([
+            ("データ種別", self.source), ("機能", self.module),
+            ("判定", self.status), ("担当者", self.tester)
+        ]):
+            row, column = divmod(index, 2)
+            base = column * 2
+            filters.addWidget(QLabel(caption), row, base)
+            filters.addWidget(widget, row, base + 1)
+
+        filters.setColumnStretch(1, 1)
+        filters.setColumnStretch(3, 1)
+        filter_actions = QHBoxLayout()
         reload_btn = QPushButton("一覧を更新")
         reload_btn.clicked.connect(lambda checked=False: self.reload())
-        filters.addWidget(reload_btn)
+        filter_actions.addWidget(reload_btn)
         if on_download:
             get_btn = QPushButton("GitHubから取得")
             get_btn.clicked.connect(lambda checked=False: on_download("download"))
-            filters.addWidget(get_btn)
+            filter_actions.addWidget(get_btn)
         lay.addLayout(filters)
+        lay.addLayout(filter_actions)
         self.source.currentIndexChanged.connect(self.apply_filters)
         self.module.currentIndexChanged.connect(self.apply_filters)
         self.status.currentIndexChanged.connect(self.apply_filters)
         self.tester.textChanged.connect(self.apply_filters)
 
-        card_row = QHBoxLayout()
+        card_grid = QGridLayout()
+        cards = []
         self.card_labels = {}
         for key, title in [("total", "表示中の実験"), ("success", "成功"),
                            ("failed", "失敗"), ("rate", "判定済み成功率"),
@@ -189,9 +211,9 @@ class DashboardTab(QWidget):
             value.setAlignment(Qt.AlignCenter)
             value.setStyleSheet("font-size: 23px; font-weight: 700; color: #17365e;")
             v.addWidget(value)
-            card_row.addWidget(card)
+            cards.append(card)
             self.card_labels[key] = value
-        lay.addLayout(card_row)
+        lay.addLayout(card_grid)
 
         splitter = QSplitter(Qt.Horizontal)
         table_container = QWidget(); tl = QVBoxLayout(table_container)
@@ -243,7 +265,52 @@ class DashboardTab(QWidget):
         splitter.addWidget(tabs)
         splitter.setSizes([510, 600])
         lay.addWidget(splitter, 1)
+
+        scroll.setWidget(content)
+
+        self._dashboard_scroll = scroll
+        self._dashboard_cards = cards
+        self._dashboard_card_grid = card_grid
+        self._dashboard_splitter = splitter
+        self._dashboard_narrow = None
+
+        self._update_responsive()
         self.reload()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_dashboard_splitter"):
+            self._update_responsive()
+
+    def _update_responsive(self):
+        narrow = self.width() < 900
+
+        if self._dashboard_narrow == narrow:
+            return
+
+        self._dashboard_narrow = narrow
+
+        grid = self._dashboard_card_grid
+        cards = self._dashboard_cards
+
+        for card in cards:
+            grid.removeWidget(card)
+
+        columns = 3 if narrow else 5
+
+        for index, card in enumerate(cards):
+            grid.addWidget(
+                card, index // columns, index % columns
+            )
+
+        splitter = self._dashboard_splitter
+        splitter.setOrientation(
+            Qt.Vertical if narrow else Qt.Horizontal
+        )
+        splitter.setMinimumHeight(680 if narrow else 440)
+        splitter.setSizes(
+            [235, 445] if narrow else [510, 600]
+        )
 
     def reload(self, records=None):
         if records is None:
