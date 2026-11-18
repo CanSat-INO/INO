@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QLineEdit, QFileDialog, QMessageBox,
     QDoubleSpinBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QSplitter, QPlainTextEdit,
+    QScrollArea, QFrame,
 )
 
 from landing_batch import run_batch, make_summary_csv
@@ -78,11 +79,46 @@ class LandingBatchTab(QWidget):
         self.detail.setMaximumHeight(115); rl.addWidget(self.detail)
         self.plot = TimePlot(); rl.addWidget(self.plot,1)
         split.addWidget(right)
-        split.setSizes([490,600]); layout.addWidget(split,1)
+        split.setSizes([490,600])
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidget(split)
+        layout.addWidget(scroll, 1)
+
+        self._batch_scroll = scroll
+        self._batch_splitter = split
+        self._batch_narrow = None
+        self._update_responsive_layout()
         self.cpp_path.textChanged.connect(self.invalidate)
         self.tolerance.valueChanged.connect(self.invalidate)
         self.tester.textChanged.connect(self.invalidate_save)
         self.version.textChanged.connect(self.invalidate_save)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_batch_splitter"):
+            self._update_responsive_layout()
+
+    def _update_responsive_layout(self):
+        narrow = self.width() < 900
+
+        if self._batch_narrow == narrow:
+            return
+
+        self._batch_narrow = narrow
+        splitter = self._batch_splitter
+
+        splitter.setOrientation(
+            Qt.Vertical if narrow else Qt.Horizontal
+        )
+
+        # Narrow windows preserve space for the table and plots.
+        splitter.setMinimumHeight(720 if narrow else 0)
+        splitter.setSizes(
+            [310, 410] if narrow else [490, 600]
+        )
 
     def invalidate(self, *_):
         self.batch = None
