@@ -83,16 +83,21 @@ class PortableModulesTab(QWidget):
             line.addWidget(choose)
             lay.addLayout(line)
 
-        commands = QHBoxLayout()
+        commands = QVBoxLayout()
         self.trusted = QCheckBox('選択したC++を信頼し、PCでコンパイル・実行することを理解しました')
         self.trusted.toggled.connect(self.update_buttons)
-        commands.addWidget(self.trusted, 1)
+        commands.addWidget(self.trusted)
+
+        action_buttons = QHBoxLayout()
         self.run_button = QPushButton('▶ モジュール試験を実行')
         self.run_button.clicked.connect(self.start_test)
-        commands.addWidget(self.run_button)
+        action_buttons.addWidget(self.run_button)
+
         self.save_button = QPushButton('結果をCSV/JSON保存')
         self.save_button.clicked.connect(self.save_report)
-        commands.addWidget(self.save_button)
+        action_buttons.addWidget(self.save_button)
+
+        commands.addLayout(action_buttons)
         lay.addLayout(commands)
 
         self.summary = QLabel('未実行：モジュールを選び、サンプルで動作を確認してください。')
