@@ -9,7 +9,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QComboBox,
     QLineEdit, QLabel, QPushButton, QPlainTextEdit, QFileDialog, QMessageBox,
-    QDoubleSpinBox, QSplitter,
+    QDoubleSpinBox, QSplitter, QScrollArea, QFrame,
 )
 from PySide6.QtCore import Qt
 
@@ -103,7 +103,9 @@ class ArduinoCsvTab(QWidget):
         right = QWidget()
         right_lay = QVBoxLayout(right)
         right_lay.setContentsMargins(2, 2, 2, 2)
-        right_lay.addWidget(QLabel("加速度・気圧グラフ（赤=真の接地、緑=ログ中の検知）"))
+        graph_title = QLabel("加速度・気圧グラフ（赤=真の接地、緑=ログ中の検知）")
+        graph_title.setWordWrap(True)
+        right_lay.addWidget(graph_title)
         self.plot = TimePlot()
         right_lay.addWidget(self.plot, 1)
         self.plot_note = QLabel("グラフはCSVのセンサー列がある場合に表示されます。")
@@ -111,11 +113,45 @@ class ArduinoCsvTab(QWidget):
         right_lay.addWidget(self.plot_note)
         splitter.addWidget(right)
         splitter.setSizes([400, 650])
-        layout.addWidget(splitter, 1)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidget(splitter)
+        layout.addWidget(scroll, 1)
+
+        self._csv_scroll = scroll
+        self._csv_splitter = splitter
+        self._csv_narrow = None
+        self._update_responsive_layout()
         for signal in (self.truth_ms.textChanged, self.mode.currentIndexChanged,
                        self.delay_ms.valueChanged, self.code.textChanged,
                        self.tester.textChanged, self.scenario.textChanged):
             signal.connect(self.invalidate)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_csv_splitter"):
+            self._update_responsive_layout()
+
+    def _update_responsive_layout(self):
+        narrow = self.width() < 900
+
+        if self._csv_narrow == narrow:
+            return
+
+        self._csv_narrow = narrow
+        splitter = self._csv_splitter
+
+        splitter.setOrientation(
+            Qt.Vertical if narrow else Qt.Horizontal
+        )
+
+        # 上下表示では両方の領域の高さを確保する
+        splitter.setMinimumHeight(860 if narrow else 0)
+        splitter.setSizes(
+            [470, 390] if narrow else [400, 650]
+        )
 
     def invalidate(self, *_):
         self.result = None
