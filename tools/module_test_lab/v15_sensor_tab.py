@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
     QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
     QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
-    QHeaderView, QAbstractItemView,
+    QHeaderView, QAbstractItemView, QScrollArea, QFrame,
 )
 from v15_sensor_core import SensorLog, read_sensor_csv, quality_report, stats_for, export_summary
 
@@ -193,11 +193,13 @@ class SensorCsvV15Tab(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setMinimumHeight(210)
         left_layout.addWidget(self.table, 2)
         left_layout.addWidget(QLabel('データ品質チェック（故障の断定ではありません）'))
         self.quality = QPlainTextEdit()
         self.quality.setReadOnly(True)
         self.quality.setPlaceholderText('時間の欠損や重複などを表示します。')
+        self.quality.setMinimumHeight(100)
         left_layout.addWidget(self.quality, 1)
         split.addWidget(left)
 
@@ -213,7 +215,39 @@ class SensorCsvV15Tab(QWidget):
         right_layout.addWidget(footnote)
         split.addWidget(right)
         split.setSizes([445, 650])
-        layout.addWidget(split, 1)
+
+        results_scroll = QScrollArea(self)
+        results_scroll.setWidgetResizable(True)
+        results_scroll.setFrameShape(QFrame.NoFrame)
+        results_scroll.setWidget(split)
+        layout.addWidget(results_scroll, 1)
+
+        self._sensor_results_scroll = results_scroll
+        self._sensor_splitter = split
+        self._sensor_narrow = None
+        self._update_sensor_layout()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_sensor_splitter"):
+            self._update_sensor_layout()
+
+    def _update_sensor_layout(self):
+        narrow = self.width() < 900
+
+        if self._sensor_narrow == narrow:
+            return
+
+        self._sensor_narrow = narrow
+        splitter = self._sensor_splitter
+
+        splitter.setOrientation(
+            Qt.Vertical if narrow else Qt.Horizontal
+        )
+        splitter.setMinimumHeight(900 if narrow else 0)
+        splitter.setSizes(
+            [485, 410] if narrow else [445, 650]
+        )
 
     def choose_file(self):
         selected, _ = QFileDialog.getOpenFileName(self, 'センサーログCSVを選択', str(Path.home()), 'CSVファイル (*.csv)')
