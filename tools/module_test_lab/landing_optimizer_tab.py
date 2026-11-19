@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
     QLabel, QPushButton, QLineEdit, QFileDialog, QMessageBox, QDoubleSpinBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QSplitter, QPlainTextEdit,
+    QSplitter, QPlainTextEdit, QScrollArea, QFrame,
 )
 
 from dashboard import TimePlot
@@ -46,7 +46,17 @@ class LandingOptimizerTab(QWidget):
         super().__init__(parent)
         self.on_saved=on_saved
         self.result=None;self.worker=None;self.saved=False
-        layout=QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        outer.addWidget(scroll)
+
+        content = QWidget()
+        layout = QVBoxLayout(content)
+
         title=QLabel('着地判定パラメータの一括探索・評価（v7）')
         title.setStyleSheet('font-size:17px; font-weight:bold; color:#17365e;')
         layout.addWidget(title)
@@ -88,6 +98,7 @@ class LandingOptimizerTab(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setMinimumHeight(220)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.itemSelectionChanged.connect(self.show_candidate)
         split.addWidget(self.table)
@@ -97,6 +108,7 @@ class LandingOptimizerTab(QWidget):
         self.cases.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.cases.setSelectionMode(QAbstractItemView.SingleSelection)
         self.cases.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.cases.setMinimumHeight(160)
         self.cases.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.cases.itemSelectionChanged.connect(self.show_case)
         ll.addWidget(self.cases,2)
@@ -104,8 +116,15 @@ class LandingOptimizerTab(QWidget):
         ll.addWidget(self.detail,2)
         self.plot=TimePlot();self.plot.setMinimumHeight(160)
         ll.addWidget(self.plot,3)
-        split.addWidget(lower);split.setSizes([180,440])
-        layout.addWidget(split,1)
+        split.addWidget(lower)
+        split.setChildrenCollapsible(False)
+        split.setMinimumHeight(720)
+        split.setSizes([240, 480])
+        layout.addWidget(split, 1)
+
+        scroll.setWidget(content)
+        self._optimizer_scroll = scroll
+        self._optimizer_splitter = split
         for field in (self.source,self.thresholds,self.holds):field.textChanged.connect(self.invalidate)
         self.tolerance.valueChanged.connect(self.invalidate)
         QApplication.instance().aboutToQuit.connect(self._shutdown)
