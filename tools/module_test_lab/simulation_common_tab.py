@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from project_store import export_path
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QLabel,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QFormLayout, QGroupBox, QLabel,
     QLineEdit, QDoubleSpinBox, QComboBox, QPushButton, QTableWidget,
     QTableWidgetItem, QHeaderView, QAbstractItemView, QFileDialog, QMessageBox,
     QScrollArea,
@@ -22,7 +22,19 @@ class SimulationCommonTab(QWidget):
         super().__init__(parent)
         self.last_run = None
         self.config = default_config()
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         title = QLabel('v11 シミュレーション共通基盤')
         title.setStyleSheet('font-size:18px; font-weight:bold; color:#17365e;')
         root.addWidget(title)
@@ -30,7 +42,9 @@ class SimulationCommonTab(QWidget):
                       '走破性や物理運動の計算には使用されません。ROS 2・REGULUSとの連携もまだ行いません。')
         note.setWordWrap(True)
         root.addWidget(note)
-        scroll = QScrollArea(); scroll.setWidgetResizable(True)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        self.settings_scroll = scroll
         container = QWidget(); form_root = QVBoxLayout(container)
         robot = QGroupBox('機体パラメータ（v11では物理演算に未反映）')
         rf = QFormLayout(robot)
@@ -76,16 +90,18 @@ class SimulationCommonTab(QWidget):
         scroll.setWidget(container)
         scroll.setMaximumHeight(360)
         root.addWidget(scroll)
-        actions = QHBoxLayout()
-        for label, fn in (
+        actions = QGridLayout()
+        for i, (label, fn) in enumerate((
             ('初期値に戻す', self.reset_config),
             ('設定JSON読込', self.open_config),
             ('設定JSON保存', self.write_config),
             ('▶ 仮想CAN実行', self.execute),
             ('結果JSON出力', self.export_json),
             ('結果CSV出力', self.export_csv),
-        ):
-            b = QPushButton(label); b.clicked.connect(fn); actions.addWidget(b)
+        )):
+            b = QPushButton(label)
+            b.clicked.connect(fn)
+            actions.addWidget(b, i // 3, i % 3)
             if label == '結果JSON出力': self.json_button = b
             if label == '結果CSV出力': self.csv_button = b
         root.addLayout(actions)
@@ -96,6 +112,7 @@ class SimulationCommonTab(QWidget):
         self.table.setHorizontalHeaderLabels(['時刻(s)','送信元','宛先','メッセージ','イベント','詳細'])
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setMinimumHeight(230)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         root.addWidget(self.table, 1)
