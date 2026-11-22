@@ -6,7 +6,7 @@ from pathlib import Path
 from project_store import export_path
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, QLabel, QComboBox, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QFileDialog, QMessageBox, QApplication,
     QPlainTextEdit, QSplitter,
@@ -30,7 +30,19 @@ class IndividualCppTab(QWidget):
         self.last_sha = ''
         self.last_source = ''
         self.last_notes = ''
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         title = QLabel('Main・CAM・Drive C++個別試験（v10）')
         title.setStyleSheet('font-size:18px; font-weight:bold; color:#17365e;')
         root.addWidget(title)
@@ -52,25 +64,25 @@ class IndividualCppTab(QWidget):
             browse.clicked.connect(lambda checked=False, r=role: self.choose_file(r))
             row.addWidget(browse)
             root.addLayout(row)
-        control = QHBoxLayout()
-        control.addWidget(QLabel('試験対象'))
+        control = QGridLayout()
+        control.addWidget(QLabel('試験対象'), 0, 0)
         self.mode = QComboBox()
         self.mode.addItem('3モジュール一括試験', 'all')
         for role in ROLES:
             self.mode.addItem(f'{role}のみ個別試験', role)
-        control.addWidget(self.mode)
-        control.addWidget(QLabel('通信シナリオ'))
+        control.addWidget(self.mode, 0, 1)
+        control.addWidget(QLabel('通信シナリオ'), 1, 0)
         self.scenario = QComboBox()
         for option in SCENARIOS:
             self.scenario.addItem(option.name, option.key)
-        control.addWidget(self.scenario, 1)
+        control.addWidget(self.scenario, 1, 1)
         self.run_button = QPushButton('▶ C++判断を試験')
         self.run_button.clicked.connect(self.run_case)
-        control.addWidget(self.run_button)
+        control.addWidget(self.run_button, 2, 0)
         self.export_button = QPushButton('結果CSV出力')
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self.save_csv)
-        control.addWidget(self.export_button)
+        control.addWidget(self.export_button, 2, 1)
         root.addLayout(control)
         self.summary = QLabel('未実行：3モジュールそれぞれのサンプルコードから試験できます。')
         self.summary.setWordWrap(True)
@@ -82,6 +94,7 @@ class IndividualCppTab(QWidget):
         self.decision_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.decision_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.decision_table.setAlternatingRowColors(True)
+        self.decision_table.setMinimumHeight(230)
         self.decision_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         splitter.addWidget(self.decision_table)
         self.timeline = QTableWidget(0, 6)
@@ -89,13 +102,17 @@ class IndividualCppTab(QWidget):
         self.timeline.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.timeline.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.timeline.setAlternatingRowColors(True)
+        self.timeline.setMinimumHeight(230)
         self.timeline.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.timeline.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         splitter.addWidget(self.timeline)
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
+        self.details.setMinimumHeight(120)
         splitter.addWidget(self.details)
-        splitter.setSizes([180, 330, 120])
+        splitter.setChildrenCollapsible(False)
+        splitter.setMinimumHeight(610)
+        splitter.setSizes([240, 240, 130])
         root.addWidget(splitter, 1)
 
     def choose_file(self, role):
