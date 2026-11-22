@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QComboBox, QPlainTextEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout, QGroupBox, QTableWidget,
     QTableWidgetItem, QFileDialog, QMessageBox, QSplitter,
-    QAbstractItemView, QHeaderView,
+    QAbstractItemView, QHeaderView, QScrollArea,
 )
 
 from records import export_bundle
@@ -33,7 +33,19 @@ class ExperimentJournalV16Tab(QWidget):
         self.host = host
         self.visible_records = []
         self.form_save_state = FormSaveState()
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.NoFrame)
+        self.scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.scroll)
+
+        body = QWidget()
+        self.scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         title = QLabel('v16｜ブレッドボード実験・コード版・ログ管理')
         title.setStyleSheet('font-size: 19px; color: #17365e; font-weight: bold;')
         root.addWidget(title)
@@ -178,6 +190,7 @@ class ExperimentJournalV16Tab(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setMinimumHeight(220)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         for col, width in [(0,150), (2,125), (3,135), (4,80), (5,110), (6,75)]:
@@ -195,9 +208,12 @@ class ExperimentJournalV16Tab(QWidget):
         splitter.addWidget(journal)
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
+        self.details.setMinimumHeight(100)
         self.details.setPlaceholderText('一覧の行を選択すると、CSVのSHA256や配線メモが表示されます。')
         splitter.addWidget(self.details)
-        splitter.setSizes([290, 130])
+        splitter.setChildrenCollapsible(False)
+        splitter.setMinimumHeight(430)
+        splitter.setSizes([310, 110])
         root.addWidget(splitter, 1)
         self.reload()
         for name in ('name','tester','board','code_version','hardware','wiring','expected','observed','csv_path','code_path'):
