@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from project_store import export_path
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, QGroupBox, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QFileDialog, QMessageBox, QPlainTextEdit, QSplitter,
 )
@@ -27,7 +27,19 @@ class ExperimentManagementTab(QWidget):
         self.plan = new_plan()
         self.batch = None
         self.history_rows = []
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         heading = QLabel('v12 実験管理・一括実行')
         heading.setStyleSheet('font-size: 18px; font-weight: bold; color: #17365e;')
         root.addWidget(heading)
@@ -47,27 +59,31 @@ class ExperimentManagementTab(QWidget):
         namebar.addWidget(QLabel('条件名'))
         namebar.addWidget(self.label_edit, 1)
         root.addLayout(namebar)
-        row = QHBoxLayout()
-        for title, action in (
+        row = QGridLayout()
+        for index, (title, action) in enumerate((
             ('共通設定を開く', self.go_to_config),
             ('＋ 現在のv11設定を追加', self.add_current),
             ('＋ 全8シナリオを追加', self.add_all),
             ('選択条件を削除', self.remove_selected),
             ('条件を全消去', self.clear_cases),
-        ):
-            button = QPushButton(title); button.clicked.connect(action); row.addWidget(button)
+        )):
+            button = QPushButton(title)
+            button.clicked.connect(action)
+            row.addWidget(button, index // 3, index % 3)
         root.addLayout(row)
-        controls = QHBoxLayout()
-        for title, action in (
+        controls = QGridLayout()
+        for index, (title, action) in enumerate((
             ('実験計画JSON保存', self.save_plan),
             ('実験計画JSON読込', self.load_plan),
             ('▶ 一括実行・履歴保存', self.execute),
             ('比較CSV出力', self.export_csv),
             ('詳細JSON出力', self.export_json),
-        ):
+        )):
             button = QPushButton(title)
             button.clicked.connect(action)
-            controls.addWidget(button)
+            controls.addWidget(
+                button, index // 3, index % 3
+            )
             if title == '比較CSV出力': self.csv_button = button
             if title == '詳細JSON出力': self.json_button = button
         root.addLayout(controls)
@@ -88,6 +104,7 @@ class ExperimentManagementTab(QWidget):
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.table.setMinimumHeight(220)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.table.itemSelectionChanged.connect(self.show_events)
@@ -108,6 +125,7 @@ class ExperimentManagementTab(QWidget):
         self.history_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.history_table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.history_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.history_table.setMinimumHeight(160)
         self.history_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.history_table.cellDoubleClicked.connect(lambda *_: self.restore_history())
         left_lay.addWidget(self.history_table)
@@ -116,11 +134,14 @@ class ExperimentManagementTab(QWidget):
         right_lay = QVBoxLayout(right)
         self.events = QPlainTextEdit()
         self.events.setReadOnly(True)
+        self.events.setMinimumHeight(150)
         self.events.setPlaceholderText('実行するとここに時系列イベントが表示されます。')
         right_lay.addWidget(self.events)
         lower_lay.addWidget(right, 3)
         splitter.addWidget(lower)
-        splitter.setSizes([420, 260])
+        splitter.setChildrenCollapsible(False)
+        splitter.setMinimumHeight(520)
+        splitter.setSizes([290, 230])
         root.addWidget(splitter, 1)
         self._update_table()
         self.refresh_history()
