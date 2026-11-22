@@ -27,8 +27,8 @@ class QualityV21Tab(QWidget):
         super().__init__(parent)
         self.findings: list[Finding] = []
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 12, 18, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(4)
 
         title = QLabel('v21｜全体品質チェック・安定化')
         title.setStyleSheet('font-size: 22px; font-weight: 800; color: #143B74;')
