@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QPlainTextEdit, QTableWidget,
     QTableWidgetItem, QAbstractItemView, QHeaderView,
-    QFileDialog, QMessageBox, QSplitter,
+    QFileDialog, QMessageBox, QSplitter, QScrollArea,
 )
 
 from records import load_records, export_bundle
@@ -23,7 +23,19 @@ class UnifiedResultsTab(QWidget):
         self.host = host
         self._saved_signatures = set()
         self.records = []
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         heading = QLabel('統合実験結果・記録（v9）')
         heading.setStyleSheet('font-size:18px; font-weight:bold; color:#17365e;')
         root.addWidget(heading)
@@ -82,6 +94,7 @@ class UnifiedResultsTab(QWidget):
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        self.table.setMinimumHeight(230)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         for c, width in enumerate([165,180,170,65,100,290,120]):
             self.table.setColumnWidth(c, width)
@@ -89,8 +102,11 @@ class UnifiedResultsTab(QWidget):
         splitter.addWidget(self.table)
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
+        self.details.setMinimumHeight(130)
         splitter.addWidget(self.details)
-        splitter.setSizes([360, 170])
+        splitter.setChildrenCollapsible(False)
+        splitter.setMinimumHeight(400)
+        splitter.setSizes([245, 155])
         root.addWidget(splitter, 1)
         self.total = QLabel('')
         root.addWidget(self.total)
