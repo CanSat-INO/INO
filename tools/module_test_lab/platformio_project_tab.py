@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QProcess
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QLabel, QLineEdit, QPushButton, QFileDialog,
     QPlainTextEdit, QCheckBox, QMessageBox,
 )
@@ -16,7 +16,18 @@ class PlatformIOProjectTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        layout = QVBoxLayout(body)
 
         title = QLabel("PlatformIO プロジェクト検証")
         title.setStyleSheet("font-size: 20px; font-weight: bold;")
@@ -96,6 +107,7 @@ class PlatformIOProjectTab(QWidget):
 
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
+        self.output.setMinimumHeight(220)
         layout.addWidget(self.output)
 
         self.process = QProcess(self)
