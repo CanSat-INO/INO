@@ -9,7 +9,7 @@ import io
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QComboBox, QPushButton,
     QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView,
     QPlainTextEdit, QFileDialog, QMessageBox, QSplitter, QLineEdit,
     QApplication,
@@ -32,7 +32,19 @@ class CppModuleTab(QWidget):
         self.last_source = None
         self.last_decisions = None
         self.last_sha = None
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         title = QLabel('C++制御ロジック × 3モジュール連携試験（v8.2）')
         title.setStyleSheet('font-size:17px;font-weight:bold;color:#17365e;')
         root.addWidget(title)
@@ -75,7 +87,8 @@ class CppModuleTab(QWidget):
         self.policy_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         for i, name in enumerate(NAMES.values()):
             self.policy_table.setItem(i, 0, QTableWidgetItem(name))
-        self.policy_table.setMaximumHeight(160)
+        self.policy_table.setMinimumHeight(210)
+        self.policy_table.setMaximumHeight(220)
         root.addWidget(self.policy_table)
         splitter = QSplitter(Qt.Vertical)
         self.event_table = QTableWidget(0, 6)
@@ -83,14 +96,18 @@ class CppModuleTab(QWidget):
         self.event_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.event_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.event_table.setAlternatingRowColors(True)
+        self.event_table.setMinimumHeight(230)
         self.event_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.event_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         splitter.addWidget(self.event_table)
         self.explain = QPlainTextEdit()
         self.explain.setReadOnly(True)
+        self.explain.setMinimumHeight(130)
         self.explain.setPlaceholderText('C++判断と仮想CANの異常原因をここに表示します。')
         splitter.addWidget(self.explain)
-        splitter.setSizes([400, 150])
+        splitter.setChildrenCollapsible(False)
+        splitter.setMinimumHeight(400)
+        splitter.setSizes([245, 155])
         root.addWidget(splitter, 1)
 
     def choose_source(self, *_):
