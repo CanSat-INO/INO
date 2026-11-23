@@ -7,7 +7,7 @@ from project_store import export_path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QComboBox, QPushButton,
     QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView,
     QPlainTextEdit, QFileDialog, QMessageBox, QSplitter, QLineEdit,
     QCheckBox, QApplication,
@@ -25,7 +25,19 @@ class ModuleFaultTab(QWidget):
         self.analysis = None
         self.cpp_source = ''
         self.cpp_sha = ''
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         title = QLabel('異常発生の追跡・原因分析（v8.3）')
         title.setStyleSheet('font-size:17px;font-weight:bold;color:#17365e;')
         root.addWidget(title)
@@ -74,6 +86,7 @@ class ModuleFaultTab(QWidget):
         self.chain_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.chain_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.chain_table.setAlternatingRowColors(True)
+        self.chain_table.setMinimumHeight(230)
         self.chain_table.verticalHeader().setVisible(False)
         self.chain_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.chain_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
@@ -83,15 +96,19 @@ class ModuleFaultTab(QWidget):
         self.all_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.all_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.all_table.setAlternatingRowColors(True)
+        self.all_table.setMinimumHeight(230)
         self.all_table.verticalHeader().setVisible(False)
         self.all_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.all_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
         splitter.addWidget(self.all_table)
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
+        self.details.setMinimumHeight(130)
         self.details.setPlaceholderText('観測された発端と影響、確認すべきログを表示します。')
         splitter.addWidget(self.details)
-        splitter.setSizes([260, 300, 170])
+        splitter.setChildrenCollapsible(False)
+        splitter.setMinimumHeight(610)
+        splitter.setSizes([235, 235, 132])
         root.addWidget(splitter, 1)
         self.chain_table.itemSelectionChanged.connect(self.focus_event)
 
