@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QComboBox, QPushButton,
     QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView,
     QPlainTextEdit, QFileDialog, QMessageBox, QSplitter,
 )
@@ -15,7 +15,19 @@ class ModuleNetworkTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.last_result = None
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.page_scroll = QScrollArea()
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.page_scroll.setMinimumSize(0, 0)
+        outer.addWidget(self.page_scroll)
+
+        body = QWidget()
+        self.page_scroll.setWidget(body)
+        root = QVBoxLayout(body)
+
         heading = QLabel('3モジュール・仮想CAN通信試験（v8.1）')
         heading.setStyleSheet('font-size:17px; font-weight:bold; color:#17365e;')
         root.addWidget(heading)
@@ -50,14 +62,18 @@ class ModuleNetworkTab(QWidget):
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setMinimumHeight(230)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(5,QHeaderView.Stretch)
         splitter.addWidget(self.table)
         self.explain = QPlainTextEdit()
         self.explain.setReadOnly(True)
+        self.explain.setMinimumHeight(130)
         self.explain.setPlaceholderText('実行すると状態遷移・判定根拠と確認すべき点を表示します。')
         splitter.addWidget(self.explain)
-        splitter.setSizes([540,180])
+        splitter.setChildrenCollapsible(False)
+        splitter.setMinimumHeight(400)
+        splitter.setSizes([245, 155])
         root.addWidget(splitter,1)
         self.update_description()
 
