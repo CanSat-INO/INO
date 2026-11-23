@@ -142,6 +142,9 @@ class DetachedTabManager(QObject):
         )
         self.tabs.setTabEnabled(index, entry["enabled"])
 
+        # 別ウィンドウを閉じたら、その機能を再選択する
+        self.tabs.setCurrentWidget(page)
+
         entry["placeholder"].deleteLater()
         del self._windows[id(page)]
 
