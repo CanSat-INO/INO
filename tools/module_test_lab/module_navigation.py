@@ -198,6 +198,7 @@ class ModuleNavigation(QWidget):
         self._active_feature_group = None
         self._card_columns = None
         self._card_reflow_pending = False
+        self._home_render_signature = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
@@ -540,6 +541,17 @@ class ModuleNavigation(QWidget):
         columns = self.feature_column_count(
             self.scroll.viewport().width()
         )
+        signature = (
+            columns,
+            tuple(self._items()),
+            self.search.text(),
+            self._active_feature_group,
+        )
+
+        if (signature == self._home_render_signature
+                and self.scroll.widget() is not None):
+            return
+
         self._card_columns = columns
 
         container = QWidget()
@@ -651,6 +663,7 @@ class ModuleNavigation(QWidget):
 
         prior = self.scroll.takeWidget()
         self.scroll.setWidget(container)
+        self._home_render_signature = signature
 
         if prior is not None:
             prior.deleteLater()
