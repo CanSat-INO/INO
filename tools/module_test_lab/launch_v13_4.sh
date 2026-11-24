@@ -8,7 +8,7 @@ PYTHON="${CANSAT_GUI_PYTHON:-$HOME/cansat_gui_venv/bin/python}"
 
 # Verified working on WSLg, PySide6 6.12 and Fcitx5's IBus-compatible portal.
 export IBUS_USE_PORTAL=1
-export QT_QPA_PLATFORM=xcb
+# Qtの表示方式は自動判定する（Wayland/X11）
 export QT_IM_MODULE=ibus
 export QT_IM_MODULES=ibus
 export XMODIFIERS='@im=fcitx'
