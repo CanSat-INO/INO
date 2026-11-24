@@ -67,7 +67,7 @@ def apply_space_theme(window):
     from PySide6.QtWidgets import QWidget, QScrollArea
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QPalette, QColor
-    window.setStyleSheet(SPACE_STYLE)
+    # 完成したテーマを末尾で一度だけ適用する
     palette = window.palette()
     for role, color in ((QPalette.Window, '#07101D'), (QPalette.WindowText, '#DFEAF5'),
                         (QPalette.Base, '#0B1829'), (QPalette.Text, '#DFEAF5'),
