@@ -5,11 +5,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$HOME/.local/share/cansat-lab"
 LAUNCHER="$HOME/.local/bin/cansat-lab"
 VENV="$ROOT/bootstrap-venv"
+MARKER="$ROOT/.fresh-install-pending"
 
 MODE="${1:---check}"
 
-if [[ "$MODE" != "--check" && "$MODE" != "--apply" ]]; then
-    echo "使い方: bash install_fresh.sh [--check|--apply]"
+if [[ "$MODE" != "--check" && "$MODE" != "--apply" && "$MODE" != "--resume" ]]; then
+    echo "使い方: bash install_fresh.sh [--check|--apply|--resume]"
     exit 2
 fi
 
@@ -59,6 +60,39 @@ if [[ "$MODE" == "--check" ]]; then
     exit 0
 fi
 
+if [[ "$MODE" == "--resume" ]]; then
+    for path in "$HOME" "$HOME/.local" "$HOME/.local/share" "$ROOT" "$VENV" "$MARKER"; do
+        if [[ -L "$path" ]]; then
+            echo "ERROR: リンク先は再開できません: $path" >&2
+            exit 1
+        fi
+    done
+
+    if [[ ! -d "$ROOT" || ! -f "$MARKER" ||
+          ! -x "$VENV/bin/python" ||
+          -e "$LAUNCHER" || -L "$LAUNCHER" ]]; then
+        echo "ERROR: 安全に再開できる未完了状態ではありません" >&2
+        exit 1
+    fi
+
+    if [[ "$(cat "$MARKER")" != "CanSatFreshInstallPending:v1" ||
+          "$(stat -c %u "$ROOT")" != "$(id -u)" ]]; then
+        echo "ERROR: 未完了マーカーまたは所有者が不正です" >&2
+        exit 1
+    fi
+
+    echo "===== Python環境を再確認 ====="
+    "$VENV/bin/python" -m pip check
+    env QT_QPA_PLATFORM=offscreen "$VENV/bin/python" -c         'from PySide6.QtWidgets import QApplication; app=QApplication([])'
+
+    echo "===== 更新クライアントの登録を再開 ====="
+    "$VENV/bin/python" "$HERE/install_client.py"         --python "$VENV/bin/python" --apply
+
+    rm -- "$MARKER"
+    echo "PASS: インストール再開成功"
+    exit 0
+fi
+
 if [[ "$EXISTING" == "1" ]]; then
     echo "ERROR: 既存環境を保護するため停止しました" >&2
     exit 1
@@ -79,6 +113,7 @@ fi
 
 mkdir -p "$HOME/.local/share"
 mkdir "$ROOT"
+(umask 077; printf '%s\n' "CanSatFreshInstallPending:v1" > "$MARKER")
 
 REGISTRATION_STARTED=0
 
@@ -96,6 +131,11 @@ cleanup_install() {
             if ! rm -rf -- "$VENV"; then
                 echo "ERROR: 仮想環境の削除に失敗しました" >&2
             fi
+        fi
+
+        if [[ -f "$MARKER" && ! -L "$MARKER" &&
+              "$(cat "$MARKER")" == "CanSatFreshInstallPending:v1" ]]; then
+            rm -- "$MARKER"
         fi
 
         if rmdir -- "$ROOT" 2>/dev/null; then
@@ -133,6 +173,8 @@ REGISTRATION_STARTED=1
 "$VENV/bin/python" "$HERE/install_client.py" \
     --python "$VENV/bin/python" \
     --apply
+
+rm -- "$MARKER"
 
 echo "PASS: CanSat Simulation 初回セットアップ完了"
 echo "起動: $LAUNCHER"
