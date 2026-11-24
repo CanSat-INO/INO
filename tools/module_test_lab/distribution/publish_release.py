@@ -17,7 +17,13 @@ def snapshot(source, target):
     for p in sorted(source.rglob('*')):
         if p.is_symlink():
             raise ValueError('ソースにリンクがあります: ' + str(p))
-        if not p.is_file() or '__pycache__' in p.parts or '.git' in p.parts or p.suffix == '.pyc':
+        if (not p.is_file()
+                or p.suffix == '.pyc'
+                or any(part in p.parts for part in (
+                    '__pycache__', '.pytest_cache',
+                    '.mypy_cache', '.ruff_cache', '.git'
+                ))
+                or p.name in ('.coverage', '.DS_Store')):
             continue
         name = p.relative_to(source)
         path = dest / name
