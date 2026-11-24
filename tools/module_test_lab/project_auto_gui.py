@@ -77,6 +77,48 @@ class ProjectController(Background):
         if not value:status.setText('自動共有OFF：記録はこのPCに保存します。')
         if error:status.setText('自動共有の設定を確認してください：'+error)
         self.timer.start();QTimer.singleShot(0,self.tick)
+
+    def request_public_consent(self):
+        """Check remote visibility in a background worker before prompting."""
+        if self.worker is not None or getattr(self.host,'_sync_worker',None) is not None:
+            message(self.host,'通信中','現在の同期が終わってから公開設定を確認してください。')
+            return
+        try:self.destination()
+        except (ValueError,OSError) as exc:
+            message(self.host,'共有先が未設定です',str(exc),warning=True);return
+        self.status.setText('GitHubの公開設定と書き込み権限を確認中…')
+        self.run_job(lambda api:api.repository_info(require_push=True),self.finish_public_consent)
+
+    def finish_public_consent(self,info):
+        repo,branch=info['repository'],info['branch']
+        try:
+            if not settings.same_destination(self.destination(),(repo,branch)):
+                raise ValueError('共有先が変更されました。公開への同意をやり直してください。')
+            if info['private']:
+                self.status.setText('共有先はPrivateです。公開への同意は不要です。')
+                return
+            project=store.read_project(self.project_id)
+            text=(f'【一般公開されます】\n送信先：{repo}\nブランチ：{branch}\n'
+                  f'プロジェクト：{project.name}（ID: {self.project_id}）\n\n'
+                  '次の内容は、GitHubを閲覧できる世界中の人に公開されます。\n'
+                  '・プロジェクト情報（名前、年度、担当者など）\n'
+                  '・既存の全実験記録（測定値、メモ、担当者など）\n'
+                  '・900KB以下の添付ファイル（CSV等）\n'
+                  '・今後保存する実験記録と添付ファイル\n'
+                  '・大きなZIPの別途保存先を使う場合、その参照情報\n\n'
+                  '送信後に設定をOFFにしても、GitHub上の公開データや履歴は消えません。\n'
+                  '秘密情報・個人情報が含まれていないことを確認してください。\n\n'
+                  'この送信先への公開を明示的に許可しますか？')
+            if message(self.host,'Publicリポジトリへの公開に同意する',text,confirm=True)!=QMessageBox.Yes:
+                self.status.setText('公開への同意はキャンセルされました。送信は許可されていません。')
+                return
+            settings.set_public_consent(self.project_id,repo,branch)
+            self.last_attempt=0;self.next_allowed=0;self.failures=0
+            self.status.setText('この送信先への公開同意を保存しました。自動共有がONなら同期します。')
+            if self.checkbox.isChecked():QTimer.singleShot(100,self.tick)
+        except (OSError,ValueError) as exc:
+            message(self.host,'公開設定を保存できません',str(exc),warning=True)
+
     def toggle(self,value):
         if value:
             if getattr(self.host,'_sync_worker',None) is not None:
@@ -92,7 +134,8 @@ class ProjectController(Background):
                   'リポジトリを閲覧できる班員が受け取れます。未保存の入力は送信しません。\n'
                   '受信した記録・添付の分だけ、このPCの保存容量を使います。\n'
                   '900KBを超える添付は設定した共有フォルダーへZIPで保存します。未設定なら送信保留になります。\n'
-                  'ZIPは確認・復元を選ぶまでこのPCへ展開しません。同一IDの変更や削除は他PCへ反映しません。\n\n有効にしますか？')
+                  'ZIPは確認・復元を選ぶまでこのPCへ展開しません。同一IDの変更や削除は他PCへ反映しません。\n'
+                  'Publicへの送信には、画面の「公開送信の同意」から別途許可が必要です。\n\n有効にしますか？')
             if message(self.host,'自動共有を有効にする',text,confirm=True)!=QMessageBox.Yes:
                 self.checkbox.blockSignals(True);self.checkbox.setChecked(False);self.checkbox.blockSignals(False);return
         try:core.set_enabled(self.project_id,value)
@@ -145,9 +188,12 @@ class ProjectController(Background):
         self.last_signature=signature;self.last_attempt=now;self.soon=False
         self.status.setText('GitHubと自動共有中… PC内への保存は続けられます。')
         cache=dict(self.cache);root=records.ATTACHMENTS_DIR
-        try:shared_root=settings.read(self.project_id)['shared_root']
+        try:
+            project_config=settings.read(self.project_id)
+            shared_root=project_config['shared_root']
+            public_consent=project_config['public_consent']
         except (ValueError,OSError) as exc:self.failed(exc);return
-        self.run_job(lambda api:api.cycle(doc,local,root,deleted,cache,shared_root),self.success)
+        self.run_job(lambda api:api.cycle(doc,local,root,deleted,cache,shared_root,public_consent),self.success)
         self.state_changed.emit()
     def success(self,result):
         if not self.checkbox.isChecked() or self.closing:return
@@ -190,15 +236,20 @@ class AutoPanel(QGroupBox):
         checkbox.setObjectName('projectAutoEnabled');row.addWidget(checkbox,1)
         button=QPushButton('今すぐ同期');button.setObjectName('projectAutoNow');row.addWidget(button)
         layout.addLayout(row)
+        public_button=QPushButton('公開送信の同意（Publicのみ）')
+        public_button.setObjectName('projectPublicConsent')
+        layout.addWidget(public_button)
         status=QLabel();status.setTextFormat(Qt.PlainText);status.setWordWrap(True)
         status.setObjectName('projectAutoStatus');layout.addWidget(status)
         host.project_auto=ProjectController(host,status,checkbox,button)
+        public_button.clicked.connect(host.project_auto.request_public_consent)
 
 
 class CatalogPanel(QGroupBox):
     def __init__(self,host):
         super().__init__('班のリンクから参加')
         self.host=host;self.docs={};self.cache={};self.last_attempt=0
+        self.source_private=None  # Unknown is treated as public for auto-enable safety.
         try:self.source=settings.catalog()
         except (ValueError,OSError):self.source={'repository':'','branch':'main','enabled':False}
         layout=QVBoxLayout(self)
@@ -246,6 +297,7 @@ class CatalogPanel(QGroupBox):
             settings.catalog(False,repository=repo,branch=branch,enabled=False)
             self.source=settings.catalog();self.checkbox.setChecked(False)
             self.docs={};self.cache={};self.items.clear();self.join.setEnabled(False)
+            self.source_private=None
             self.status.setText(f'共有先：{repo} / {branch}')
             return True
         except (ValueError,OSError) as exc:
@@ -268,7 +320,8 @@ class CatalogPanel(QGroupBox):
             self.status.setText('一覧の自動更新は停止中です。「プロジェクトを探す」で再確認できます。')
     def joined_catalog(self,result):
         if not self.checkbox.isChecked() or self.background.closing:return
-        self.cache=result['cache'];selected=self.items.currentItem()
+        self.cache=result['cache'];self.source_private=result.get('private') is True
+        selected=self.items.currentItem()
         selected_id=selected.data(Qt.UserRole) if selected else None
         self.items.clear();self.docs={}
         for doc in result['projects']:
@@ -282,10 +335,15 @@ class CatalogPanel(QGroupBox):
         item=self.items.currentItem()
         if item is None:return
         doc=self.docs[item.data(Qt.UserRole)];p=project_share.validate(doc)
-        text=(f'「{p["name"]}」に参加し、このPCで自動共有を有効にして開きます。\n'
+        share_policy=('Privateのため参加後に自動共有を有効にします。'
+                      if self.source_private else 'Publicまたは公開状態未確認のため、参加後の自動共有はOFFです。')
+        auto_policy=('自動共有を有効にすると、このPCの既存・今後の記録と添付がGitHubへ送信されます。'
+                     if self.source_private else
+                     'Publicでは参加しても自動送信されません。公開同意と自動共有の操作が別途必要です。')
+        text=(f'「{p["name"]}」に参加して開きます。{share_policy}\n'
               f'共有先: {self.source["repository"]} / {self.source["branch"]}\n'
               f'年度・班: {p.get("year","未設定")} {p.get("team","")}\n担当者: {p["owner"] or "未入力"}\nID: {p["id"]}\n'
-              '受信した記録と、このプロジェクトに保存済み・今後保存する記録や添付をGitHubで共有します。\n'
+              f'{auto_policy}\n'
               '受信したデータの分だけ、このPCの保存容量を使います。\n'
               '既存の同じIDの記録・プロジェクト情報は上書きしません。\n\n参加しますか？')
         if message(self.host,'共有プロジェクトへ参加',text,confirm=True)!=QMessageBox.Yes:return
@@ -297,7 +355,7 @@ class CatalogPanel(QGroupBox):
                 raise ValueError('同じIDのプロジェクトが別のGitHub共有先に登録済みです。ホームの共有設定から確認してください。')
             result=project_share.register(doc)
             settings.save(result.project.id,repo,branch,previous['shared_root'] if previous else '')
-            core.set_enabled(result.project.id,True)
+            core.set_enabled(result.project.id,self.source_private is True)
             self.host.reload();self.host.launch(result.project.id)
         except (OSError,ValueError) as exc:message(self.host,'参加できません',str(exc),warning=True)
 

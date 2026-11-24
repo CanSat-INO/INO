@@ -181,7 +181,7 @@ class ProjectAPI(GitHubSync):
         return items
 
     def catalog(self, cache=None):
-        self._require_private_repository()
+        info=self.repository_info()  # Read-only catalog works for Public and Private.
         cache=cache or {};new={};result=[]
         entries=self.listing(REMOTE)
         if len(entries)>100:raise SyncError('プロジェクトが100件を超えています。一覧の管理方式を確認してください。')
@@ -198,15 +198,18 @@ class ProjectAPI(GitHubSync):
                 metadata=project_share.validate(doc)
                 if metadata['id']!=pid:raise SyncError('共有一覧のプロジェクトIDが一致しません。')
             new[pid]=(entry.get('sha'),doc);result.append(doc)
-        return {'projects':result,'cache':new}
+        return {'projects':result,'cache':new,'private':info['private']}
 
-    def cycle(self,doc,local,attachment_root,deleted,cache=None,shared_root=""):
+    def cycle(self,doc,local,attachment_root,deleted,cache=None,shared_root="",public_consent=None):
         project_id=project_share.validate(doc)['id']
         if any(not isinstance(r,dict) or not isinstance(r.get('id'),str) for r in local):
             raise SyncError('ローカル台帳のIDを確認してください。')
         if len({r['id'] for r in local})!=len(local):raise SyncError('ローカル台帳に重複IDがあります。')
         root=f'{REMOTE}/{project_id}'
-        self._require_private_repository()
+        info=self.repository_info(require_push=True)
+        if not info['private'] and not project_settings.public_consent_valid(
+                public_consent, self.repo, self.branch, project_id):
+            raise SyncError('公開GitHubへの送信は未許可です。公開内容と共有先を確認し、公開への同意を行ってください。')
         raw=self._get_file(root+'/project.json')
         if raw is None:
             self._put_new_file(root+'/project.json',

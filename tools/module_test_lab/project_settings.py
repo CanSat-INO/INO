@@ -5,6 +5,8 @@ import re
 from urllib.parse import urlsplit
 import project_store as store
 
+PUBLIC_SCOPE = 'project-records-attachments-and-future-saves-v1'
+
 
 def destination(repository,branch='main'):
     if not isinstance(repository,str) or not isinstance(branch,str):raise ValueError('GitHub共有先が不正です。')
@@ -30,9 +32,42 @@ def path(project_id):
     return store._safe_chain(store.read_project(project_id).directory/'.autosync/settings.json')
 
 
+def public_consent_valid(value, repository, branch, project_id=None):
+    """Fail closed unless the local opt-in matches this exact destination.
+
+    A project-specific settings file supplies the project boundary. project_id is
+    included for defense in depth when the authorization leaves that file.
+    """
+    if not isinstance(value, dict) or value.get('scope') != PUBLIC_SCOPE:
+        return False
+    if type(value.get('confirmed')) is not bool or not value['confirmed']:
+        return False
+    if project_id is None or value.get('project_id') != project_id:
+        return False
+    try:
+        bound_repo, bound_branch = destination(value.get('repository'), value.get('branch'))
+        expected_repo, expected_branch = destination(repository, branch)
+    except ValueError:
+        return False
+    return same_destination((bound_repo, bound_branch), (expected_repo, expected_branch))
+
+
+def set_public_consent(project_id, repository, branch):
+    """Call only after the GUI has shown and received explicit PUBLIC consent."""
+    value = read(project_id)
+    if not value['repository'] or not same_destination(
+            (value['repository'], value['branch']), destination(repository, branch)):
+        raise ValueError('共有先が変更されました。公開への同意をやり直してください。')
+    value['public_consent'] = {
+        'confirmed': True, 'repository': value['repository'],
+        'branch': value['branch'], 'project_id': project_id, 'scope': PUBLIC_SCOPE,
+    }
+    store.atomic_json(path(project_id), value)
+
+
 def read(project_id):
     target=path(project_id)
-    result={'format':'cansat-auto-settings-1','enabled':False,'repository':'','branch':'main','shared_root':''}
+    result={'format':'cansat-auto-settings-1','enabled':False,'repository':'','branch':'main','shared_root':'','public_consent':None}
     if not target.exists():return result
     if target.stat().st_size>16*1024:raise ValueError('共有設定が大きすぎます。')
     value=json.loads(target.read_text(encoding='utf-8'))
@@ -44,6 +79,8 @@ def read(project_id):
     if not isinstance(result['shared_root'],str):raise ValueError('共有フォルダー設定が不正です。')
     # A previous INO-only prototype must not silently choose a destination.
     if not result['repository']:result['enabled']=False
+    if not public_consent_valid(result['public_consent'], result['repository'], result['branch'], project_id):
+        result['public_consent']=None
     return result
 
 
@@ -58,7 +95,7 @@ def save(project_id,repository,branch,shared_root=''):
         if folder==data or data in folder.parents:raise ValueError('共有フォルダーには実験台帳の外のフォルダーを選んでください。')
         shared_root=str(folder)
     store.atomic_json(path(project_id),{'format':'cansat-auto-settings-1','enabled':False,
-                      'repository':repository,'branch':branch,'shared_root':shared_root})
+                      'repository':repository,'branch':branch,'shared_root':shared_root,'public_consent':None})
 
 
 def current_destination():
@@ -78,6 +115,7 @@ def set_enabled(project_id,value):
     settings=read(project_id)
     if value and not settings['repository']:raise ValueError('先にホームの共有設定でGitHub共有先を指定してください。')
     settings['enabled']=value
+    if not value:settings['public_consent']=None
     store.atomic_json(path(project_id),settings)
 
 
