@@ -27,14 +27,28 @@ def main():
     node = rclpy.create_node('ino_virtual_probe')
     received = {}
     counts = Counter()
-    image_stamps = {'/raw/left/image': set(), '/raw/right/image': set()}
+    replay_frames = {}
 
     def receive(name, message):
         received[name] = message
         counts[name] += 1
-        if args.replay and name in image_stamps:
+        if args.replay and name.startswith('/raw/'):
+            if isinstance(message, CameraInfo) and not (message.k[0] > 0 and message.k[4] > 0):
+                return
+            if isinstance(message, Image) and not message.data:
+                return
             stamp = message.header.stamp
-            image_stamps[name].add((stamp.sec, stamp.nanosec))
+            key = (stamp.sec, stamp.nanosec)
+            replay_frames.setdefault(key, {})[name] = (message.width, message.height, message.header.frame_id)
+            if len(replay_frames) > 256:
+                replay_frames.pop(next(iter(replay_frames)))
+    def synchronized_frames():
+        for stamp, frames in replay_frames.items():
+            if len(frames) != 4:
+                continue
+            if all(frames[f'/raw/{side}/image'] == frames[f'/raw/{side}/camera_info']
+                   for side in ('left', 'right')):
+                yield stamp
     topics = {'/clock': Clock, '/ground/imu': Imu, '/ground/encoder_odom': Odometry, '/odom': Odometry}
     if args.replay:
         topics = {name: topics[name] for name in ('/clock', '/ground/imu')}
@@ -43,7 +57,7 @@ def main():
         topics[f'/raw/{side}/camera_info'] = CameraInfo
     for topic, msg_type in topics.items():
         node.create_subscription(msg_type, topic, lambda msg, name=topic: receive(name, msg),
-                                 QoSProfile(depth=5) if args.replay and msg_type is Image else qos_profile_sensor_data)
+                                 QoSProfile(depth=5) if args.replay and msg_type in (Image, CameraInfo) else qos_profile_sensor_data)
     buffer = Buffer()
     listener = TransformListener(buffer, node)
     capture = None if args.replay else node.create_client(Trigger, '/virtual/capture')
@@ -54,14 +68,14 @@ def main():
         while time.monotonic() - start < (90 if args.replay else 40):
             rclpy.spin_once(node, timeout_sec=0.1)
             if args.replay:
-                matched = image_stamps['/raw/left/image'] & image_stamps['/raw/right/image']
+                matched = set(synchronized_frames())
                 if len(matched) < 3:
                     continue
             if (topics.keys() <= received.keys() and (args.replay or (capture.service_is_ready()
                     and buffer.can_transform('odom', 'left_raw_optical', Time())))):
                 break
         else:
-            raise RuntimeError(f'Incomplete input: counts={dict(counts)}, synchronized image pairs={len(matched)}')
+            raise RuntimeError(f'Incomplete input: counts={dict(counts)}, synchronized stereo+CameraInfo sets={len(matched)}')
         if node.get_clock().now().nanoseconds == 0 or not node.get_parameter('use_sim_time').value:
             raise RuntimeError('Enable use_sim_time with --ros-args -p use_sim_time:=true')
         if args.replay:
@@ -72,7 +86,7 @@ def main():
                     raise RuntimeError(f'{side} CameraInfo does not match image dimensions')
                 if not image.data or not (image.header.stamp.sec or image.header.stamp.nanosec):
                     raise RuntimeError(f'{side} image or stamp is missing')
-            print(f'Replay verified: {dict(counts)}, synchronized image pairs={len(matched)}', flush=True)
+            print(f'Replay verified: {dict(counts)}, synchronized stereo+CameraInfo sets={len(matched)}', flush=True)
             return
         capture_deadline = time.monotonic() + 15
         while time.monotonic() < capture_deadline:

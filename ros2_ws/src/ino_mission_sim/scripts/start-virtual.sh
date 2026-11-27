@@ -10,7 +10,7 @@ environment="$package/scripts/ros-environment.sh"
 if [[ ! -f "$environment" ]]; then
     environment="$package/../../../scripts/ros-environment.sh"
 fi
-source "$environment"
+source "$(dirname "$environment")/sim-environment.sh"
 export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-67}
 if [[ ! "$ROS_DOMAIN_ID" =~ ^(0|[1-9][0-9]{0,2})$ ]] || (( ROS_DOMAIN_ID > 232 )); then
     echo "ROS_DOMAIN_ID must be an integer between 0 and 232." >&2
@@ -43,4 +43,4 @@ mkdir -p "$run"
     printf 'launch_argument=%s\n' "$@"
 } > "$run/environment.txt"
 echo "ROS_DOMAIN_ID=$ROS_DOMAIN_ID results=$run"
-exec ros2 launch "$package/launch/ground.launch.py" sensors_only:=true gui:=false rviz:=false runtime:="$run" "$@"
+ino_sim_run ros2 launch "$package/launch/ground.launch.py" sensors_only:=true gui:=false rviz:=false runtime:="$run" "$@"

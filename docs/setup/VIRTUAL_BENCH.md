@@ -8,7 +8,7 @@ start-module-test-lab.bat を開き、「自律走行・降下・SIL」から「
 
 ## CLI と外部ワークスペース
 
-Lyrical環境で起動後に別プロセスのTopicを受信できない場合は、[確認済みのループバックZenoh手順](RELEASE_CHECKLIST.md#lyricalでfast-ddsの別プロセスが見えない場合) を使用する。仮想機体、外部ワークスペース、録画・再生、Test Labで同じRMWとセッション設定を使用する。
+Lyricalの仮想ベンチではループバック限定のZenohを既定にする。外部端末で仮想ベンチと同じドメインを指定し、source scripts/sim-environment.sh を実行する。[班員向けの起動手順](RELEASE_CHECKLIST.md#班員向けの起動手順)
 
 リポジトリ直下の端末で起動する。RTAB-Map、経路計画、自律走行ノードは起動しない。
 
@@ -21,7 +21,8 @@ bash ros2_ws/src/ino_mission_sim/scripts/start-virtual.sh drive:=true
 別の Ubuntu 端末で examples/virtual_client を独立したワークスペースにコピーする。シミュレーター側のワークスペースをビルドする必要はない。
 
 ~~~bash
-source scripts/ros-environment.sh
+source scripts/sim-environment.sh
+ino_sim_wait
 mkdir -p ~/ino-virtual-client-ws/src
 cp -r examples/virtual_client ~/ino-virtual-client-ws/src/
 cd ~/ino-virtual-client-ws

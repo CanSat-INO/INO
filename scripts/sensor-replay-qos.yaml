@@ -8,3 +8,13 @@
   durability: volatile
   history: keep_last
   depth: 5
+/raw/left/camera_info:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 5
+/raw/right/camera_info:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 5

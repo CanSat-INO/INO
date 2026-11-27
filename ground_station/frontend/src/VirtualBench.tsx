@@ -19,6 +19,7 @@ function imagePath(value: string | undefined) {
 
 export default function VirtualBench() {
   const [events, setEvents] = useState<BenchEvent[]>([])
+  const [session, setSession] = useState('')
   const [status, setStatus] = useState('受信待ち')
   useEffect(() => {
     const controller = new AbortController()
@@ -32,7 +33,9 @@ export default function VirtualBench() {
         const data: unknown = await response.json()
         if (!Array.isArray(data)) throw new Error('イベント形式が不正です')
         setEvents(data.filter(event => event && typeof event.kind === 'string'))
-        setStatus('接続中 · 読取専用')
+        setSession(response.headers.get('X-INO-Session') ?? '')
+        setStatus(response.headers.get('X-INO-Live') === '1'
+          ? 'ライブ更新中 · 読取専用' : '停止または更新待ち · 保存データを表示中')
       } catch (error) {
         if (!controller.signal.aborted) setStatus('受信できません · ' + String(error))
       } finally {
@@ -65,7 +68,7 @@ export default function VirtualBench() {
         {(['left', 'right'] as const).map(side => {
           const src = imagePath(transfer?.images?.[side])
           return (
-            <figure key={side} style={{ display: 'inline-block', margin: '0.5rem', maxWidth: 'min(100%, 30rem)' }}>
+            <figure key={session + side} style={{ display: 'inline-block', margin: '0.5rem', maxWidth: 'min(100%, 30rem)' }}>
               {src ? <img src={src} alt={side === 'left' ? '左カメラ画像' : '右カメラ画像'} style={{ maxWidth: '100%' }} /> : '未受信'}
               <figcaption>{side === 'left' ? '左カメラ' : '右カメラ'}</figcaption>
             </figure>

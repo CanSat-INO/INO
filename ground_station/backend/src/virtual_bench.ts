@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -10,10 +11,18 @@ type Event = {
 };
 
 export function virtualBench(rootPath: string) {
-  const root = fs.realpathSync(rootPath);
-  const eventFile = path.join(root, 'module-events.jsonl');
+  let previousSignature = '';
+  let lastUpdate = Number.NEGATIVE_INFINITY;
 
-  function recentEvents(): Event[] {
+  function readSession() {
+    const root = fs.realpathSync(rootPath);
+    const eventFile = path.join(root, 'module-events.jsonl');
+    const stat = fs.lstatSync(eventFile);
+    if (!stat.isFile()) throw new Error('Expected a local event file');
+    return { root, eventFile, signature: JSON.stringify([root, stat.size, stat.mtimeMs]) };
+  }
+
+  function recentEvents(eventFile: string): Event[] {
     const fd = fs.openSync(eventFile, 'r');
     try {
       const size = fs.fstatSync(fd).size;
@@ -45,9 +54,19 @@ export function virtualBench(rootPath: string) {
       return true;
     }
     try {
-      const events = recentEvents();
+      const { root, eventFile, signature } = readSession();
+      const events = recentEvents(eventFile);
       if (url.pathname === '/api/virtual/events') {
-        response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        if (signature !== previousSignature) {
+          if (previousSignature) lastUpdate = performance.now();
+          previousSignature = signature;
+        }
+        response.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+          'X-INO-Live': performance.now() - lastUpdate < 4000 ? '1' : '0',
+          'X-INO-Session': createHash('sha256').update(root).digest('hex').slice(0, 16),
+        });
         response.end(JSON.stringify(events.map(event => {
           if (!event.images) return event;
           const { images, ...metadata } = event;

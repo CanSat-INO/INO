@@ -6,6 +6,8 @@ install(DIRECTORY tools launch config scripts firmware DESTINATION share/${PROJE
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 install(FILES
   ../../../scripts/ros-environment.sh
+  ../../../scripts/sim-environment.sh
+  ../../../scripts/sim-supervisor.py
   ../../../scripts/ros-distro.py
   ../../../scripts/install_ros2.py
   DESTINATION share/${PROJECT_NAME}/scripts)

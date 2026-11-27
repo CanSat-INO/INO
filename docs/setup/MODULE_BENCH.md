@@ -28,8 +28,9 @@ bash ros2_ws/src/ino_mission_sim/scripts/start-virtual.sh bench:=all bench_set:=
 第2端末は同じROSドメインを使用する。下記では、付属の短命なPC用C++試験アダプターをコンパイルする。独自アダプターを試す場合はコンパイル対象またはバイナリを差し替える。
 
 ~~~bash
-source scripts/ros-environment.sh
-export ROS_DOMAIN_ID=67 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+export ROS_DOMAIN_ID=67
+source scripts/sim-environment.sh
+ino_sim_wait
 work="$(mktemp -d)"
 g++ -std=c++17 examples/module_adapters/adapter.cpp -o "$work/adapter"
 python3 examples/module_adapters/connect.py main "$work/adapter"
