@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-sudo apt-get update
-sudo apt-get install -y ros-jazzy-ros-gz ros-jazzy-rtabmap-ros ros-jazzy-rviz2 ros-jazzy-cv-bridge ros-jazzy-teleop-twist-keyboard python3-opencv python3-numpy python3-scipy python3-yaml python3-pil python3-matplotlib python3-tk python3-colcon-common-extensions
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+if [[ ! -f "$ROOT/scripts/setup.sh" ]]; then
+ echo 'Run setup from the source checkout: see docs/setup/README.md.' >&2; exit 2
+fi
+exec bash "$ROOT/scripts/setup.sh" --system-only "$@"

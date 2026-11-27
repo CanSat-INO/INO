@@ -19,6 +19,7 @@ from navigation_search_v13_5 import matches_search
 
 # Accessible icons use text glyphs as decoration only; their names remain visible.
 ITEM_ICONS = {
+    '自律走行・降下・SIL': '⬡',
     '着地検知シミュレーション': '◎',
     '実験記録・チーム共有': '▣',
     '結果ダッシュボード': '▥',

@@ -21,6 +21,8 @@ CATEGORIES = {
 def category_for(name: str) -> str:
     """Stable categorization of legacy navigation tab labels."""
     text = str(name).casefold()
+    if "自律走行・降下・sil" in text:
+        return "simulation"
     if "センサー実験" in text:
         return "simulation"
     if "異常" in text or "fault" in text:

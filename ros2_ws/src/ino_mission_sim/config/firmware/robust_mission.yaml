@@ -1,0 +1,14 @@
+# Provisional SIL test settings. Sensor errors are assumptions, not datasheets.
+extends: descent_mission.yaml
+profile: guarded
+pre_release_wait_s: 8.0
+stop_on_landing: false
+duration_s: 360.0
+record_bag: true
+record_camera_images: false
+sensors:
+  barometer: {period_s: 0.05, max_age_s: 0.5, noise_std: [0.03, 0, 0]}
+  gnss: {period_s: 0.2, max_age_s: 2.5, noise_std: [0.05, 0.05]}
+  imu: {period_s: 0.02, max_age_s: 0.3, noise_std: [0.02, 0.02, 0.02]}
+  heading: {period_s: 0.05, max_age_s: 0.7, noise_std: [1.0]}
+  camera: {max_age_s: 0.7, delay_s: 0.05, jitter_s: 0.01}

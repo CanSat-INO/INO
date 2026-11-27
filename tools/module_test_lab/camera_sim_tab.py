@@ -71,10 +71,10 @@ class CameraSimTab(QWidget):
         self.log=QPlainTextEdit();self.log.setReadOnly(True);self.log.setMaximumBlockCount(600);self.log.setMaximumHeight(140);layout.addWidget(self.log)
         self.timer=QTimer(self);self.timer.setInterval(1000);self.timer.timeout.connect(self.poll);self.timer.start()
         self.refresh()
-        if sys.platform!='linux' or not (PACKAGE/'scripts/start.sh').exists():
+        if sys.platform!='linux' or not (PACKAGE/'scripts/start.sh').exists() or not any(Path(f'/opt/ros/{distro}/setup.bash').is_file() for distro in ('jazzy', 'lyrical')):
             self.start_button.setEnabled(False);self.test_button.setEnabled(False)
             for b in self.config_buttons:b.setEnabled(False)
-            self.status.setText('WSL Ubuntu側で、INOリポジトリ内のTest Labを起動してください。')
+            self.status.setText('Gazebo用のROS環境が必要です。WSL Ubuntu側でsetup-simulation.batまたはbash scripts/setup.shを実行してください。')
         else:self.start_button.setEnabled(False);self.test_button.setEnabled(False)
 
     def active(self):

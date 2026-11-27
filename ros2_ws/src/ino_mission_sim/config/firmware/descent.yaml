@@ -1,0 +1,27 @@
+# 2027 contest: release ~30m; no release at >=8m/s. Wind values below are test conditions.
+# https://www.jaxa-rocket-contest.jp/common/document/contest2027_rule.pdf p20
+extends: mission.yaml
+profile: passive
+middleware: zenoh
+release_height_m: 30.0
+release_yaw_deg: 0.0
+world_size_m: 160.0
+geofence_m: 75.0
+duration_s: 60.0
+stop_on_landing: true
+descent:
+  body_cda_m2: 0.024   # Assumed folded body Cd*area; not measured.
+  initial_velocity_enu_mps: [0.0, 0.0, 0.0]
+  parachute:
+    trigger: time       # time / altitude / command (ROS Bool)
+    trigger_time_s: 1.0 # Measured from RELEASE, not power-on or crane ascent.
+    trigger_altitude_m: 25.0
+    delay_s: 0.0
+    opening_s: 1.5      # Smooth effective-area ramp; not cloth deployment.
+    max_fraction: 1.0
+    failure: false
+  wind:
+    mean_enu_mps: [6.0, 0.0, 0.0] # Wind TO east, not meteorological FROM direction.
+    turbulence_std_mps: 0.0
+    seed: 27
+    gusts: []

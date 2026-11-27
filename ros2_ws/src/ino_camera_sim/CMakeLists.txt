@@ -4,4 +4,9 @@ find_package(ament_cmake REQUIRED)
 install(DIRECTORY launch config tools scripts assets DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE)
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
+install(FILES
+  ../../../scripts/ros-environment.sh
+  ../../../scripts/ros-distro.py
+  ../../../scripts/install_ros2.py
+  DESTINATION share/${PROJECT_NAME}/scripts)
 ament_package()

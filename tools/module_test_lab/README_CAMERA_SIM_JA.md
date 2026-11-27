@@ -8,10 +8,7 @@ INO直下の **start-module-test-lab.bat** を開く。
 初回はUbuntu内でリポジトリ直下から以下を実行する。
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install PySide6
-# ROS側の依存パッケージが未導入の場合のみ
-bash ros2_ws/src/ino_camera_sim/scripts/setup.sh
+bash scripts/setup.sh
 ```
 
 Ubuntuから直接起動する場合：
@@ -62,3 +59,6 @@ ROSのライブラリをTest Labにimportせず、起動プロセスとJSONの�
   同じ実行フォルダーから結果一覧へ読み込めることを確認。
 - GUIロジックはoffscreen描画で検証。Windowsから通常のGazebo/RViz画面を
   操作する一連の手動確認は別途必要。
+
+初回導入の最新手順は [クローンから起動](../../docs/setup/README.md)、
+[ROS導入](../../docs/setup/ROS2.md)、[診断](../../docs/setup/TROUBLESHOOTING.md) を参照。

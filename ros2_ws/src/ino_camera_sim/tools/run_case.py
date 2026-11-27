@@ -37,7 +37,7 @@ else:
 for folder in ('tools','launch','config','scripts'):
     shutil.copytree(ROOT/folder,out/'source'/folder,ignore=shutil.ignore_patterns('__pycache__'))
 with (out/'versions.txt').open('w') as versions:
-    subprocess.run(['dpkg-query','-W','ros-jazzy-rtabmap','ros-jazzy-gz-sim-vendor','ros-jazzy-ros-gz-bridge'],stdout=versions,check=True)
+    subprocess.run(['dpkg-query','-W',*[f'ros-{os.environ["ROS_DISTRO"]}-{name}' for name in ('rtabmap', 'gz-sim-vendor', 'ros-gz-bridge')]],stdout=versions,check=True)
 
 def stop(proc):
     for sig,seconds in [(signal.SIGINT,35),(signal.SIGTERM,8),(signal.SIGKILL,2)]:

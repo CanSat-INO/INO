@@ -11,7 +11,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: true
+    strictPort: true,
+    proxy: process.env.INO_VIRTUAL_UI === '1' ? {
+      '/api/virtual': { target: 'http://127.0.0.1:8080', changeOrigin: true },
+    } : undefined
   }
 })
 

@@ -1,6 +1,6 @@
 # INO カメラシミュレーション
 
-ROS 2 Jazzy / Gazebo Harmonic / RTAB-Map を使うステレオカメラ試験です。
+ROS 2・Gazebo・RTAB-Map（Jazzy/Harmonic または Lyrical/Jetty） を使うステレオカメラ試験です。
 本番ファームウェアとは独立して動きます。Module Test Labの「Gazebo カメラ試験」からも起動・評価できます。
 
 ## 普段の起動（Windows）
@@ -18,7 +18,7 @@ ROS 2 Jazzy / Gazebo Harmonic / RTAB-Map を使うステレオカメラ試験で
 
 ## 初回の準備
 
-Ubuntu 24.04 / WSLg / 描画可能なOpenGL環境を使用する。
+Ubuntu 24.04 または 26.04 / WSLg / 描画可能なOpenGL環境を使用する。
 Ubuntuのターミナルでリポジトリ直下から以下を実行する。
 sudoによるシステムパッケージ導入なので、必要な場合だけ実行する。
 
@@ -40,7 +40,7 @@ bash ros2_ws/src/ino_camera_sim/scripts/start.sh gui:=false rviz:=false
 
 ```sh
 cd ros2_ws
-source /opt/ros/jazzy/setup.bash
+source "/opt/ros/$(lsb_release -rs | sed -e 's/^24\.04$/jazzy/' -e 's/^26\.04$/lyrical/')/setup.bash"
 colcon build --packages-select ino_camera_sim
 source install/setup.bash
 export ROS_DOMAIN_ID=64 GZ_PARTITION=ino_camera_64 GZ_IP=127.0.0.1
@@ -78,7 +78,7 @@ CAD外形を視野遮蔽に使用するが、接触形状は簡略化してい�
 ## 検証コマンド
 
 ```sh
-source /opt/ros/jazzy/setup.bash
+source "/opt/ros/$(lsb_release -rs | sed -e 's/^24\.04$/jazzy/' -e 's/^26\.04$/lyrical/')/setup.bash"
 cd ros2_ws/src/ino_camera_sim/tools
 python3 -m unittest test_geometry test_capture_timing -v
 # 実際のGazebo画像・撮影ペア・SLAM出力を確認し、自分のセッションを停止

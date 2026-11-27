@@ -1,0 +1,99 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Background Color: 40; 40; 45
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Ground grid
+      Enabled: true
+      Cell Size: 0.5
+      Plane Cell Count: 20
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Traversability green-orange-red and goal
+      Enabled: true
+      Topic:
+        Value: /ground/terrain_colors
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        Depth: 1
+    - Class: rviz_default_plugins/Path
+      Name: Planned path MAGENTA (unknown segments provisional)
+      Enabled: true
+      Topic:
+        Value: /ground/planned_path
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        Depth: 1
+      Color: 255; 80; 220
+      Line Width: 0.025
+      Buffer Length: 1
+    - Class: rviz_default_plugins/Path
+      Name: Driven path BLUE (encoder and IMU)
+      Enabled: true
+      Topic:
+        Value: /ground/driven_path
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        Depth: 1
+      Color: 40; 190; 255
+      Line Width: 0.02
+      Buffer Length: 1
+    - Class: rviz_default_plugins/Marker
+      Name: CanSat CAD current estimated pose
+      Enabled: true
+      Topic:
+        Value: /ground/robot
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        Depth: 1
+    - Class: rviz_default_plugins/Image
+      Name: Last stopped photograph
+      Enabled: true
+      Topic:
+        Value: /capture/left/image
+        Reliability Policy: Reliable
+    - Class: rviz_default_plugins/PointCloud2
+      Name: SLAM cloud (toggle to inspect terrain colors)
+      Enabled: false
+      Topic:
+        Value: /cloud_map
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+      Color Transformer: RGB8
+      Style: Points
+      Size (Pixels): 3
+    - Class: rviz_default_plugins/Path
+      Name: Optimized SLAM path YELLOW
+      Enabled: true
+      Topic:
+        Value: /slam/path
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+      Color: 255; 230; 40
+      Line Width: 0.015
+      Buffer Length: 1
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 5
+      Pitch: 1.2
+      Yaw: 0
+      Focal Point:
+        X: 1.8
+        Y: 0
+        Z: 0
+Window Geometry:
+  Width: 1350
+  Height: 850

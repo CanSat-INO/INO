@@ -1,0 +1,6 @@
+extends: descent.yaml
+descent:
+  wind:
+    # Peak east component 10 m/s, total ~10.2 m/s: outside normal release conditions.
+    gusts:
+      - {start_s: 2.5, duration_s: 3.0, delta_enu_mps: [4.0, 2.0, 0.0]}

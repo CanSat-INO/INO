@@ -1,0 +1,10 @@
+/raw/left/image:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 5
+/raw/right/image:
+  reliability: reliable
+  durability: volatile
+  history: keep_last
+  depth: 5

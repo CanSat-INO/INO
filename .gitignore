@@ -23,3 +23,12 @@ Thumbs.db
 **/.pio/
 
 .venv/
+
+.pytest_cache/
+
+# Local ROS bag data
+*.mcap
+*.db3
+
+# Local legacy reference sources pending redistribution review
+/ros2_ws/src/ino_mission_sim/firmware/legacy_2025/original/

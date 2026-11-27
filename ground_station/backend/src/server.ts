@@ -7,6 +7,10 @@ import { parseWcppPacket } from './wcpp_parser';
 import { buildWcppPacket } from './wcpp_builder';
 import { calculateCRC8, decodeEntryType } from './wcpp_utils';
 import { TelemetryLogger } from './logger';
+import { virtualBench } from './virtual_bench';
+
+const benchRun = process.env.INO_VIRTUAL_RUN_DIR;
+const benchApi = benchRun ? virtualBench(benchRun) : undefined;
 
 const WS_PORT = Number(process.env.WS_PORT ?? 8080);
 const SERIAL_BAUD = 115200;
@@ -59,6 +63,7 @@ function availableLogs() {
 }
 const httpServer = createServer((request, response) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  if (benchApi?.(request, response, url)) return;
   response.setHeader('Access-Control-Allow-Origin', '*');
   if (url.pathname === '/api/logs') { response.setHeader('Content-Type', 'application/json; charset=utf-8'); response.end(JSON.stringify(availableLogs())); return; }
   let name: string | undefined;
@@ -70,7 +75,8 @@ const httpServer = createServer((request, response) => {
   response.statusCode = 404; response.end('Not found');
 });
 const wss = new WebSocketServer({ server: httpServer });
-httpServer.listen(WS_PORT);
+if (benchApi) httpServer.listen(WS_PORT, '127.0.0.1');
+else httpServer.listen(WS_PORT);
 
 // Initialize Async Logger
 const logger = new TelemetryLogger(`telemetry_${Date.now()}.csv`);
@@ -270,7 +276,7 @@ async function initSerial() {
 }
 
 // Start Serial Port Connection
-initSerial();
+if (!benchApi) initSerial();
 
 wss.on('connection', (socket) => {
   const ws = socket as LiveWebSocket;
@@ -290,6 +296,7 @@ wss.on('connection', (socket) => {
   });
 
   ws.on('message', (message) => {
+    if (benchApi) return;
     try {
       console.log('Received command from frontend:', message.toString()); logger.event('COMMAND', 'Command received from frontend', message.toString());
       const commandJson = JSON.parse(message.toString());
