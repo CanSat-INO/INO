@@ -1,0 +1,28 @@
+name: やること
+description: 実装・製作・調査・実験など、これからやること。
+title: "[Task] "
+body:
+  - type: markdown
+    attributes:
+      value: 短い箇条書きでOK！ 詳細は相談しながら追加しましょう。認証情報や個人情報は載せないでください。
+  - type: textarea
+    id: work
+    attributes:
+      label: 何をする？
+      placeholder: 例：カメラ画像を地上局で表示できるようにしたい。
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: どうなったら完了？
+      placeholder: 例：画像を1枚表示して、結果を共有できたら。まだ決められなければ「相談して決めたい」でOK。
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: メモ・相談（任意）
+      placeholder: 実験なら条件や成功の基準、実施後の結果・ログもここやコメントに追記できます。
+    validations:
+      required: false
