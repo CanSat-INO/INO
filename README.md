@@ -41,6 +41,8 @@ cmake -S cansat/development -B /tmp/ino-dev-build
 cmake --build /tmp/ino-dev-build
 ctest --test-dir /tmp/ino-dev-build --output-on-failure
 pio run -d cansat/main
+pio run -d cansat/camera
+pio run -d cansat/drive
 pio run -d cansat/regulus_rtos
 source /opt/ros/lyrical/setup.bash
 cd ros2_ws
