@@ -5,7 +5,7 @@ Windows では WSL2 + WSLg、Linux では GUI 付き Ubuntu を使用する。
 | Ubuntu | ROS 2 | Gazebo | 確認状況 |
 |---|---|---|---|
 | 24.04 | Jazzy | Harmonic | amd64 で実動確認済み |
-| 26.04 | Lyrical | Jetty | セットアップ対応。Gazebo 実動は未検証 |
+| 26.04 | Lyrical | Jetty | 正式対象。WSL2 amd64・ループバックZenohで実動確認済み |
 
 ROS 2 と Gazebo は Ubuntu のバージョンに応じて自動選択する。
 ARM64はセットアップ対象だが未検証。WindowsネイティブだけでGazeboを動かす構成ではない。
@@ -15,17 +15,17 @@ ARM64はセットアップ対象だが未検証。Windowsネイティブだけ�
 未導入なら、管理者PowerShellで実行する。
 
 ```powershell
-wsl --install -d Ubuntu-24.04
+wsl --install -d Ubuntu-26.04
 ```
 
 Windowsから再起動を求められた場合は再起動し、Ubuntuを開いてLinuxユーザー名・
 パスワードを設定する。このパスワードは後のsudoで使う。
-既存のUbuntu 24.04がある場合はそのまま利用できる。
+Ubuntu 24.04は従来の比較用環境。班内初期版はUbuntu 26.04で始める。
 Lyrical に移行する場合は [Ubuntu 26.04 を別の WSL 環境に用意する手順](ROS2.md#lyrical-へ移行する-wsl) を参照。
 
 ```powershell
 wsl --list --verbose
-wsl -d Ubuntu-24.04
+wsl -d Ubuntu-26.04
 ```
 
 ディストリビューション名がUbuntuなら最後の行は `wsl -d Ubuntu`。
@@ -55,6 +55,8 @@ GitHubのアクセス権が必要な場合は各自のアカウントで認証�
 
 ```bash
 bash scripts/setup.sh
+bash scripts/doctor.sh
+bash tools/module_test_lab/launch_ino.sh
 ```
 
 または `explorer.exe .` でこのフォルダーを開き、**setup-simulation.bat** をダブルクリックする。
@@ -75,7 +77,7 @@ Windows機能・GPUドライバー・時計・サービス再起動・.bashrcは
 
 ## 4. 普段の起動
 
-**start-module-test-lab.bat** を開く。
+**start-module-test-lab.bat** を開く。担当コードを試す場合は「自律走行・降下・SIL」→「仮想センサー単独（外部ROS接続）」から [担当プリセット](MODULE_BENCH.md) を選ぶ。
 
 - 「Gazebo カメラ試験」: カメラ条件・撮影・SLAM・比較。
 - 「自律走行・降下・SIL」: 停止撮影の地上走行、放出・開傘、ユーザーC++アダプター。
@@ -131,7 +133,7 @@ bash scripts/setup.sh --dev                     # pytest等の開発用依存も
 - [カメラ試験](../../tools/module_test_lab/README_CAMERA_SIM_JA.md)
 - [自律走行・降下・SIL](../../tools/module_test_lab/README_MISSION_SIM_JA.md)
 
-完全に未設定のWindows/Ubuntuからの導入は別環境での確認が必要。
+別PCでの動作確認は班員への配布後に行う。
 検証範囲はこのフォルダーの資料と各試験ガイドに記す。
 
 ## この版で確認したこと

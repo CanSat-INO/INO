@@ -5,7 +5,7 @@
 ## 初めて使う人へ
 
 **[クローンから起動までのREADME](docs/setup/README.md)** を参照。
-正式な開発環境は Ubuntu 26.04 / WSL2（Lyrical / Jetty）です。シミュレーションは Ubuntu 24.04（Jazzy / Harmonic）でもセットアップできます。Windows では WSL2 + WSLg を使用します。Ubuntu 26.04上でcolconのビルドを検証し、Jettyでの通し試験は環境診断通過後に行います。正式配布の判定と担当別の開始手順は [配布チェックリスト](docs/setup/RELEASE_CHECKLIST.md) を参照してください。
+**班内開発用初期版**です。ソフト班員が実機なしで担当コードを開発・確認するための内部ツールです。正式対象は Ubuntu 26.04 / ROS 2 Lyrical Luth / Gazebo Jetty、仮想ベンチの標準RMWはループバック限定Zenohです。WindowsではWSL2 + WSLgを使用します。[担当別接続](docs/setup/MODULE_BENCH.md) · [検証範囲と既知の制約](docs/setup/RELEASE_CHECKLIST.md)
 
 Ubuntu内でcloneし、このフォルダーで初回だけ実行する。
 
