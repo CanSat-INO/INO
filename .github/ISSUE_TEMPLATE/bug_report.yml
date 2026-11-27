@@ -1,0 +1,21 @@
+name: 困っていること
+description: 不具合や作業の行き詰まりを気軽に共有。
+title: "[Help] "
+body:
+  - type: markdown
+    attributes:
+      value: 短い箇条書きでOK！ 詳細は相談しながら追加しましょう。認証情報や個人情報は載せないでください。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 何が起きた？
+      placeholder: 例：画像を受信していると途中で止まる。解決方法が分からなくても大丈夫！
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 状況・試したこと（任意）
+      placeholder: いつ起きたか、使った機材、ログや写真など、分かる範囲で。
+    validations:
+      required: false
