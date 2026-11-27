@@ -1,0 +1,6 @@
+logs/
+worlds/
+*.db
+*.db-*
+assets/meshes/*.stl
+config/.validation.yaml

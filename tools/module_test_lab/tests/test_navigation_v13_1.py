@@ -31,8 +31,8 @@ class NavigationV131StaticTests(unittest.TestCase):
 try:
     os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
     from PySide6.QtCore import QCoreApplication
-    from PySide6.QtWidgets import QApplication, QPushButton
-    from module_navigation import JapaneseSearchEdit, ModuleNavigation
+    from PySide6.QtWidgets import QApplication
+    from module_navigation import JapaneseSearchEdit, ModuleNavigation, NavigationTile
 except ImportError:
     QApplication = None
 
@@ -58,11 +58,11 @@ class NavigationV131GuiTests(unittest.TestCase):
         self.nav.search.setText('着地')
         self.nav.rebuild_home()
         self.assertEqual(len(self.nav.scroll.widget().findChildren(
-            QPushButton, 'moduleNavigationTile0')), 1)
+            NavigationTile, 'moduleNavigationTile0')), 1)
         self.nav.search.setText('')
         self.nav.rebuild_home()
         self.assertEqual(len(self.nav.scroll.widget().findChildren(
-            QPushButton)), 3)
+            NavigationTile)), 3)
 
     def test_ime_preedit_does_not_rebuild(self):
         from PySide6.QtGui import QInputMethodEvent
@@ -77,7 +77,7 @@ class NavigationV131GuiTests(unittest.TestCase):
         self.nav._toggle_category('制御・通信')
         self.assertEqual(self.nav.search.text(), '制御・通信')
         self.assertEqual(len(self.nav.scroll.widget().findChildren(
-            QPushButton)), 1)
+            NavigationTile)), 1)
         self.nav._toggle_category('制御・通信')
         self.assertEqual(self.nav.search.text(), '')
 

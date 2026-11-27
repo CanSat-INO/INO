@@ -1,0 +1,7 @@
+# Assumed design grid. These are scenarios, not measured distributions.
+diameter_m: [0.6, 0.76, 0.9]
+trigger_time_s: [0.0, 0.1, 0.5, 1.0, 2.0]
+opening_s: [0.3, 0.8, 1.5]
+wind_mps: [0.0, 3.0, 6.0, 7.5]
+max_vertical_speed_mps: 5.0
+cd_sensitivity_factors: [0.75, 1.0, 1.25]

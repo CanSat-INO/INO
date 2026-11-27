@@ -7,6 +7,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[4]
 INSTALLER = ROOT / 'install_v19.py'
 
+# These fixtures belong to the original ZIP installer, not the monorepo.
+pytestmark = pytest.mark.skipif(
+    not INSTALLER.is_file() or not (ROOT/'test_fixtures/v18_app.py').is_file(),
+    reason='Original ZIP installer and fixture are not shipped in this repository',
+)
+
 
 def get_module():
     spec = importlib.util.spec_from_file_location('v19_installer_for_test', INSTALLER)

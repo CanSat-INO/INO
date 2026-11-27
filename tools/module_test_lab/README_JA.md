@@ -1,3 +1,11 @@
+# 現在のリポジトリからの起動
+
+INO直下の `start-module-test-lab.bat` を開く。
+初回セットアップとカメラ試験は [Gazebo カメラ試験](README_CAMERA_SIM_JA.md) を参照。
+ROS 2はカメラ試験の起動時に使用し、既存の着地・仮想CAN試験には不要。
+
+以下は既存機能の説明です。旧ZIP配布時の導入先ではなく、このリポジトリ内のコードを使用してください。
+
 # CanSat Module Test Lab v2 — 個別実験とチーム記録集約
 
 **既存の `~/cansat_ws`（ROS 2統合シミュレーター）は変更しません。**

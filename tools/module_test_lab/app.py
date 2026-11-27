@@ -30,6 +30,8 @@ from v19_compare_tab import ExperimentCompareV19Tab
 from v20_workflow_tab import WorkflowV20Tab
 from v21_quality_tab import QualityV21Tab
 from simulation_common_tab import SimulationCommonTab
+from camera_sim_tab import CameraSimTab
+from mission_sim_tab import MissionSimTab
 from experiment_management_tab import ExperimentManagementTab
 from landing_sim import Config, SCENARIOS, make_trace, reference_detect, CONTACT_TIME
 from github_sync import GitHubSync, REPO_DEFAULT, BRANCH_DEFAULT
@@ -239,11 +241,11 @@ class TestLab(QMainWindow):
         h = QLabel("CanSat Module Test Lab")
         h.setObjectName("moduleLabTitle")
         outer.addWidget(h)
-        info = QLabel("統合ROS 2シミュレーターとは独立した実験環境  |  結果をZIP / GitHubで共有 → 1か所に集約")
+        info = QLabel("個別ロジック試験・Gazeboカメラ試験  |  実験台帳をZIP / GitHubで共有")
         info.setObjectName("moduleLabSubtitle")
         outer.addWidget(info)
         self.navigation = ModuleNavigation(self); outer.addWidget(self.navigation, 1); self.tabs = self.navigation.tabs
-        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_v14_host_tab(); self.build_v14_1_modules_tab(); self.build_v15_sensor_tab(); self.build_v16_journal_tab(); self.build_v17_phase_tab(); self.build_v18_bus_tab(); self.build_v19_compare_tab(); self.build_v20_workflow_tab(); self.build_v21_quality_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_guide_tab()
+        self.build_sim_tab(); self.build_ledger_tab(); self.build_dashboard_tab(); self.build_arduino_csv_tab(); self.build_cpp_landing_tab(); self.build_landing_batch_tab(); self.build_landing_compare_tab(); self.build_landing_optimizer_tab(); self.build_module_network_tab(); self.build_cpp_module_tab(); self.build_module_fault_tab(); self.build_unified_results_tab(); self.build_individual_cpp_tab(); self.build_v14_host_tab(); self.build_v14_1_modules_tab(); self.build_v15_sensor_tab(); self.build_v16_journal_tab(); self.build_v17_phase_tab(); self.build_v18_bus_tab(); self.build_v19_compare_tab(); self.build_v20_workflow_tab(); self.build_v21_quality_tab(); self.build_simulation_common_tab(); self.build_experiment_management_tab(); self.build_camera_sim_tab(); self.build_mission_sim_tab(); self.build_guide_tab()
         self.refresh_ledger()
         style_action_buttons(self)
         self.statusBar().showMessage(f"実験記録の保存先: {DATA_DIR} | GitHub同期は手動です")
@@ -406,6 +408,14 @@ class TestLab(QMainWindow):
         note = QLabel("共有ZIPとGitHub同期を併用できます。GitHubに送信する前にログ中の秘密情報を確認してください。同一IDは上書きしません。")
         note.setStyleSheet("color: #566576;")
         lay.addWidget(note)
+
+    def build_mission_sim_tab(self):
+        self.mission_sim_tab = MissionSimTab()
+        self.tabs.addTab(self.mission_sim_tab, "自律走行・降下・SIL")
+
+    def build_camera_sim_tab(self):
+        self.camera_sim_tab = CameraSimTab()
+        self.tabs.addTab(self.camera_sim_tab, "Gazebo カメラ試験")
 
     def build_v14_1_modules_tab(self):
         self.v14_1_modules_tab = PortableModulesTab()
@@ -746,15 +756,27 @@ class TestLab(QMainWindow):
             event.ignore()
             QMessageBox.information(self, "GitHub同期中", "通信が完了してからアプリを閉じてください。")
             return
-        choice = QMessageBox.question(
-            self, "Test Labを終了",
-            "Test Labを終了しますか？\n\n"
-            "画面上の未保存の入力内容は保存されません。\n"
-            "保存済みの実験記録はローカルに残ります。",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if choice != QMessageBox.Yes:
+        if not getattr(self, '_exit_confirmed', False):
+            choice = QMessageBox.question(
+                self, "Test Labを終了",
+                "Test Labを終了しますか？\n\n"
+                "画面上の未保存の入力内容は保存されません。\n"
+                "保存済みの実験記録はローカルに残ります。\n"
+                "実行中のGazebo試験は停止してから終了します。",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if choice != QMessageBox.Yes:
+                event.ignore()
+                return
+            self._exit_confirmed = True
+        active_simulations = [tab for tab in (self.camera_sim_tab, getattr(self, "mission_sim_tab", None))
+                              if tab is not None and tab.active()]
+        if active_simulations:
             event.ignore()
+            for tab in active_simulations:
+                tab.stop()
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(500, self.close)
             return
         super().closeEvent(event)
 

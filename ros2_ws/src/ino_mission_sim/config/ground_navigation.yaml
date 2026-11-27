@@ -1,0 +1,72 @@
+camera_config: config/presets/placement_h180_p30_b40.yaml
+goal_xy_m:
+- 3.6
+- 0.0
+duration_s: 600.0
+speed_mps: 0.06
+turn_rate_radps: 0.14
+goal_tolerance_m: 0.5
+goal:
+  camera_confirmation: true
+  association_radius_m: 0.6
+  confirmation_views: 2
+  stop_margin_m: 0.03
+  cone_base_height_m: 0.045
+  cone_visible_radius_ratio: 0.4
+resolution_m: 0.05
+map_bounds_m:
+- -1.0
+- -2.0
+- 5.0
+- 2.0
+footprint_radius_m: 0.17
+safety_margin_m: 0.08
+max_step_m: 0.04
+max_slope_deg: 18.0
+max_roughness_m: 0.025
+obstacle_height_m: 0.12
+max_sensor_age_s: 0.8
+max_observation_range_m: 1.2
+drive_step_m: 0.1
+turn_step_deg: 10.0
+settle_s: 0.7
+capture_period_s: 0.5
+seed: 73
+robot:
+  mass_kg: 1.037
+  track_length_m: 0.215
+  track_width_m: 0.045
+  track_height_m: 0.06
+  track_separation_m: 0.227
+  friction: 0.9
+obstacles:
+  cones:
+  - - 0.85
+    - 0.0
+  - - 2.75
+    - 1.0
+  - - 3.0
+    - -1.0
+  cone_height_m: 0.45
+  cone_base_m: 0.25
+  boxes:
+  - - 1.35
+    - -0.65
+    - 0.3
+    - 0.35
+    - 0.2
+  - - 3.05
+    - -0.65
+    - 0.22
+    - 0.25
+    - 0.18
+  ramp:
+    center_x_m: 1.8
+    length_m: 0.7
+    width_m: 4.0
+    height_m: 0.025
+  step:
+    center_x_m: 2.35
+    length_m: 0.16
+    width_m: 4.0
+    height_m: 0.015

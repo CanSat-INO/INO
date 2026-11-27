@@ -1,0 +1,4 @@
+extends: descent.yaml
+profile: mission
+stop_on_landing: false
+duration_s: 600.0

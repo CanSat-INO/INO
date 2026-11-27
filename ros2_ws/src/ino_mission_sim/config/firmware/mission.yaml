@@ -1,0 +1,17 @@
+# Reduced-order mission dynamics, not calibrated parachute/track performance.
+profile: mission
+controller_executable: ''
+release_height_m: 10.0
+goal_xy_m: [10.0, 0.0]
+mass_kg: 1.049
+air_density_kgm3: 1.293
+parachute_diameter_m: 0.76
+drag_coefficient: 1.75
+speed_mps: 0.3
+turn_rate_radps: 0.35
+motor_tau_s: 0.15
+duration_s: 240.0
+geofence_m: 14.0
+gnss_noise_std_m: 0.0
+heading_noise_std_deg: 0.0
+seed: 27
