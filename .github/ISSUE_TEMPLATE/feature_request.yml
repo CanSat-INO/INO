@@ -1,0 +1,21 @@
+name: アイデア・相談
+description: やってみたいことや、みんなに相談したいこと。
+title: "[Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: 短い箇条書きでOK！ 詳細は相談しながら追加しましょう。認証情報や個人情報は載せないでください。
+  - type: textarea
+    id: idea
+    attributes:
+      label: 何を考えている？
+      placeholder: 例：地上局に機体の向きを表示したい。まだまとまっていなくてもOK！
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 背景・参考資料（任意）
+      placeholder: きっかけやリンクなどがあれば。
+    validations:
+      required: false

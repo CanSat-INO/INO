@@ -1,0 +1,50 @@
+name: Monorepo build
+on:
+  pull_request:
+    paths:
+      - 'cansat/**'
+      - 'ground_station/**'
+      - 'ros2_ws/**'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cmake -S cansat/development -B /tmp/ino-build
+      - run: cmake --build /tmp/ino-build
+      - run: ctest --test-dir /tmp/ino-build --output-on-failure
+      - run: python -m pip install platformio
+      - run: pio run -d cansat/main
+      - run: pio run -d cansat/regulus_rtos
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ground_station
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm run build --workspace=frontend
+      - run: npx --no-install tsc --noEmit -p backend/tsconfig.json
+  ros:
+    runs-on: ubuntu-24.04
+    container: ros:lyrical-ros-base
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          source /opt/ros/lyrical/setup.bash
+          cd ros2_ws
+          colcon build --packages-select ino_bringup
+          source install/setup.bash
+          ros2 launch ino_bringup development.launch.py
