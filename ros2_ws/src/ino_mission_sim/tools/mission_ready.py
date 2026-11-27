@@ -8,7 +8,7 @@ from sensor_msgs.msg import Image
 from rosgraph_msgs.msg import Clock
 
 if os.environ.get("ROS_DISTRO") == "lyrical":
-    from gz.transport15 import Node as GzNode
+    from gz.transport import Node as GzNode
     from gz.msgs.clock_pb2 import Clock as GzClock
     from gz.msgs.world_stats_pb2 import WorldStatistics
 else:

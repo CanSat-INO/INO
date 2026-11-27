@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 if os.environ.get("ROS_DISTRO") == "lyrical":
-    from gz.transport15 import Node
+    from gz.transport import Node
     from gz.msgs.marker_pb2 import Marker
     from gz.msgs.marker_v_pb2 import Marker_V
     from gz.msgs.boolean_pb2 import Boolean

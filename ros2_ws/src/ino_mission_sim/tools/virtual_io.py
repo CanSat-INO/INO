@@ -12,6 +12,7 @@ from cv_bridge import CvBridge
 from geometry_msgs.msg import Twist
 import rclpy
 from rclpy.clock import Clock, ClockType
+from rclpy.impl.implementation_singleton import rclpy_implementation
 from rclpy.executors import ExternalShutdownException
 from rclpy.utilities import remove_ros_args
 from rclpy.node import Node
@@ -126,6 +127,9 @@ def main():
         rclpy.spin(node)
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
+    except rclpy_implementation.RCLError:
+        if rclpy.ok():
+            raise
     finally:
         node.destroy_node()
         rclpy.try_shutdown()

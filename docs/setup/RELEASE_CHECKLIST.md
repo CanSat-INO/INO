@@ -64,11 +64,52 @@ PublisherとSubscriberが1件ずつ見え、Reliableで適合していること�
 
 ## 配布前の検証状況
 
-Ubuntu 26.04.1 / Lyricalで ino_bringup、ino_camera_sim、ino_mission_sim のcolconビルドが通り、機体C++ひな形のCTestは3件成功した。Jetty・ROS–Gazeboブリッジ・SciPyの実行時依存が不足しているため実動の配布判定は保留。
+Ubuntu 26.04.1 / Lyrical / Jetty 10.5.0 で doctor が通り、ROSパッケージ3件のcolconビルド、機体C++ひな形のCTest 3件、pytest 398件を確認。18件のスキップは別配布ZIPのインストーラー試験。
 
-Jazzy / HarmonicではDriveの前進約0.230 m、後退約0.230 mをGazebo Ground Truthで確認した。エンコーダー相当はそれぞれ約0.226 m、約0.227 m。左旋回は0.868 rad、右旋回は−0.931 rad。指令途絶・重複では停止し、重複解消後は新規指令で復帰した。Logical Drive 展開の試験はノード内状態遷移まで確認した。
+このWSL環境ではFast DDSのLOCALHOSTでGazeboを介さないROS 2別プロセス間通信もタイムアウトした。シミュレーターの起動だけで合格とせず、別ワークスペースの購読まで試す。検証では次節のループバック限定Zenohを使用した。
 
-Ubuntu 26.04でdry-runがLyrical用の依存を選ぶことは確認済み。Jetty・ROS-Gazeboブリッジ・SciPyなどの導入はsudo認証待ちで、正式環境の実動は未確認。地上局はフロントのビルドとViteプロキシ経由のイベント・左右画像取得まで確認した。ブラウザーでの見た目は未確認。Jazzyの隔離ドメインで再生し、左右画像とCameraInfoは各3件、IMUは25件、Clockは245件を受信した。左右画像の同時刻ペアは3組。正式配布の判定にはLyrical / Jettyでの通し試験が必要。
+| Drive計測 | Jazzy / Harmonic | Lyrical / Jetty + Zenoh |
+|---|---:|---:|
+| 前進 Ground Truth / encoder | 0.2295 / 0.2262 m | 0.0666 / 0.0650 m |
+| 後退 Ground Truth / encoder | 0.2297 / 0.2274 m | 0.1995 / 0.1992 m |
+| 左旋回 Ground Truth | +0.8680 rad | +0.4585 rad |
+| 右旋回 Ground Truth | −0.9311 rad | −0.6819 rad |
+
+両試験とも指令途絶・複数発行元・重複解消後の古い指令拒否・新規指令での復帰を確認。各区間は壁時計で計測するため、負荷とシミュレーション時刻の進み方も距離に影響する。この測定だけで物理エンジン差を定量化できない。Lyrical試験ではZenohが500 msを超える時刻差を報告し、内部の時刻を置き換えるログも観測した。WSLの時刻やDDS設定は変更していない。
+
+## 正式環境の実動結果
+
+配布判定は B。Ubuntu 26.04 のこのWSL環境では、以下をループバックZenoh使用条件で確認した。標準Fast DDSの別プロセス疎通と時刻差の原因は未解決。
+
+- SLAMなしで、別colconワークスペースのサンプルが左右画像・CameraInfo・IMU・エンコーダー相当・TF・Clockを購読し、撮影に成功。JettyのWSLgウィンドウ生成とカメラのソフトウェア描画も確認。
+- 外部MainとCameraのC++例に交換し、Capture ID 1の撮影・左右PNG保持・仮想転送通知を確認。Driveは既存の検証スクリプトで測定。
+- 55.1 MiBのMCAPを記録後、Gazeboを終了して別ドメインで再生。左右画像各3件、CameraInfo左2件・右3件、IMU 22件、Clock 210件を外部ノードで受け、左右同時刻の3組を確認。制御Topicは再生対象外。
+- Jettyの一時停止でClockが停止し、走行指令が失効した。再開後も新規指令まで停止を維持し、リセット時はClockの巻き戻りと停止を確認。
+- Test LabのWSLg実ウィンドウで担当別試験の起動・停止を2回確認。地上局はWindows Edgeのヘッドレス実ブラウザーで、テストデータの状態・Capture ID時刻・異常・左右PNG描画を確認。Lyricalのライブセッションから地上局までの通し試験は未実施。
+
+## LyricalでFast DDSの別プロセスが見えない場合
+
+同じWSL内の端末で以下を実行し、ループバックだけで待ち受けるルーターを起動する。ポート17688が使用中なら両設定のポート番号を同時に変更する。
+
+~~~bash
+source scripts/ros-environment.sh
+cfg="$(mktemp -d)"
+defaults="$(ros2 pkg prefix --share rmw_zenoh_cpp)/config"
+sed 's@tcp/localhost:7447@tcp/127.0.0.1:17688@g' "$defaults/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5" > "$cfg/session.json5"
+sed 's@tcp/\[::\]:7447@tcp/127.0.0.1:17688@g' "$defaults/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5" > "$cfg/router.json5"
+printf '%s\n' "$cfg/session.json5"
+ZENOH_ROUTER_CONFIG_URI="$cfg/router.json5" "$(ros2 pkg prefix rmw_zenoh_cpp)/lib/rmw_zenoh_cpp/rmw_zenohd"
+~~~
+
+別端末では、表示されたセッション設定のパスを使う。Test Lab、外部ノード、Drive検証、録画・再生はすべて同じ設定を読み込んだ端末から起動する。録画と再生の隔離ドメインは従来どおり分ける。
+
+~~~bash
+source scripts/ros-environment.sh
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_SESSION_CONFIG_URI=/tmp/作成されたフォルダー/session.json5
+bash scripts/verify-virtual-drive.sh
+~~~
+
 
 ## コミットの分割案
 
@@ -82,4 +123,4 @@ mainの取り込みは既存のマージコミットに含まれる。ローカ�
 
 CanSat INØのソフト班が実機なしで担当コードを試せる仮想開発環境を追加します。ステレオ・IMU・TF・Clockの配信、Main/Camera/Driveの担当別差し替え、C++と外部ROSノードの接続、地上局バックエンド向けのローカル試験API、制御Topicを含まないセンサー記録再生を含みます。
 
-Jazzy / Harmonicの検証では外部Drive C++から前進・後退・左右旋回し、指令途絶・重複時の停止と新規指令での復帰を確認しました。正式対象はUbuntu 26.04 / Lyrical / Jettyです。Jazzyではセンサーだけを別ドメインに再生し、左右画像の同時刻ペアを外部ノードで確認済みです。地上局は開発用の読取専用画面から確認できます。正式環境の依存導入と通し試験、実ウィンドウ操作、残る異常系を正式配布前に確認します。
+Jazzy / Harmonicの検証では外部Drive C++から前進・後退・左右旋回し、指令途絶・重複時の停止と新規指令での復帰を確認しました。正式対象はUbuntu 26.04 / Lyrical / Jettyです。Jazzyではセンサーだけを別ドメインに再生し、左右画像の同時刻ペアを外部ノードで確認済みです。地上局は開発用の読取専用画面から確認できます。Lyrical / JettyではループバックZenohを使って仮想センサーと外部接続を確認しました。このWSL環境でのFast DDSの別プロセス疎通は未解決です。

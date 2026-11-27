@@ -8,6 +8,8 @@ start-module-test-lab.bat を開き、「自律走行・降下・SIL」から「
 
 ## CLI と外部ワークスペース
 
+Lyrical環境で起動後に別プロセスのTopicを受信できない場合は、[確認済みのループバックZenoh手順](RELEASE_CHECKLIST.md#lyricalでfast-ddsの別プロセスが見えない場合) を使用する。仮想機体、外部ワークスペース、録画・再生、Test Labで同じRMWとセッション設定を使用する。
+
 リポジトリ直下の端末で起動する。RTAB-Map、経路計画、自律走行ノードは起動しない。
 
 ~~~bash

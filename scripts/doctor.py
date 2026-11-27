@@ -52,8 +52,8 @@ def diagnose(lab_only=False,ros_only=False):
             probe="""import json,cv2,numpy,scipy,yaml,PIL,matplotlib,tkinter,rclpy,cv_bridge
 from ament_index_python.packages import get_package_prefix
 import importlib,os
-transport,msgs=(15,"msgs") if os.environ["ROS_DISTRO"]=="lyrical" else (13,"msgs10")
-importlib.import_module(f"gz.transport{transport}")
+transport,msgs=("transport","msgs") if os.environ["ROS_DISTRO"]=="lyrical" else ("transport13","msgs10")
+importlib.import_module(f"gz.{transport}")
 importlib.import_module(f"gz.{msgs}")
 names=['ros_gz_sim','ros_gz_bridge','rtabmap_odom','rtabmap_slam','rmw_zenoh_cpp','rviz2','tf2_ros']
 print(json.dumps({name:get_package_prefix(name) for name in names}))
